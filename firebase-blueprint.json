@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Represents a student, reviewer, or administrator profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID matching Auth UID" },
+        "name": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "format": "email", "description": "User's verified email address" },
+        "teamId": { "type": "string", "description": "Reference to Team ID or blank if unassigned" },
+        "role": { "type": "string", "enum": ["student", "reviewer", "admin"], "description": "User privilege tier" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "A student capstone project team",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique team ID" },
+        "name": { "type": "string", "description": "Name of the team" }
+      },
+      "required": ["id", "name"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Daily capstone progress report submitted by a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Report document ID (userId_date)" },
+        "userId": { "type": "string", "description": "UID of the student submitting" },
+        "teamId": { "type": "string", "description": "Team ID of the student at submission" },
+        "date": { "type": "string", "format": "date", "description": "Report date (YYYY-MM-DD)" },
+        "todayWork": { "type": "string", "description": "Description of work done today" },
+        "blockers": { "type": "string", "description": "Description of any blocker issues" },
+        "tomorrowPlan": { "type": "string", "description": "Description of planned work tomorrow" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Review state" },
+        "reviewComment": { "type": "string", "description": "Reviewer feedback comments" },
+        "reviewedBy": { "type": "string", "description": "UID of the reviewing account" },
+        "reviewedAt": { "type": "object", "description": "Timestamp of review" },
+        "createdAt": { "type": "object", "description": "Timestamp of creation" },
+        "isRestDay": { "type": "boolean", "description": "Whether the day was marked as a rest day" },
+        "restReason": { "type": "string", "description": "Reason for taking a rest day" }
+      },
+      "required": ["id", "userId", "teamId", "date", "todayWork", "blockers", "tomorrowPlan", "status"]
+    },
+    "WhitelistEntry": {
+      "title": "WhitelistEntry",
+      "description": "Pre-authorized user email whitelisting",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "The whitelisted Gmail address" },
+        "name": { "type": "string", "description": "Expected name of the student or reviewer" },
+        "role": { "type": "string", "enum": ["student", "reviewer", "admin"], "description": "Assigned authorization role" },
+        "teamId": { "type": "string", "description": "Reference to initial Team ID or blank if unassigned" }
+      },
+      "required": ["email", "name", "role", "teamId"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile collection"
+    },
+    "teams/{teamId}": {
+      "schema": "Team",
+      "description": "Capstone teams collection"
+    },
+    "reports/{reportId}": {
+      "schema": "Report",
+      "description": "Daily capstone student reports collection"
+    },
+    "whitelist/{email}": {
+      "schema": "WhitelistEntry",
+      "description": "Pre-authorized login whitelists"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Daily Capstone Report",
+  "description": "Consolidated progress monitoring web application for capstone students, reviewers, and administrators with Firebase Auth and CSV report exports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

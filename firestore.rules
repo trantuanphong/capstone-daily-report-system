@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global safety net - default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE HARDENED GLOBAL HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Role Lookup Functions
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function getUserRole(uid) {
+      return getUserData(uid).role;
+    }
+
+    function getUserTeam(uid) {
+      return getUserData(uid).teamId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserRole(request.auth.uid) == 'admin';
+    }
+
+    function isReviewer() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserRole(request.auth.uid) == 'reviewer';
+    }
+
+    function isStudent() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserRole(request.auth.uid) == 'student';
+    }
+
+    // --- USER PROFILE RULES ---
+    match /users/{userId} {
+      allow read: if isSignedIn(); // Allow reading profile cards for teammate displays and reviewer details
+      
+      allow create: if isEmailVerified() 
+        && userId == request.auth.uid
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && (
+          (request.auth.token.email.lower() == "phongtt35@fpt.edu.vn" && incoming().role == "admin")
+          || (
+            exists(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower()))
+            && incoming().role == get(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower())).data.role
+            && incoming().teamId == get(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower())).data.teamId
+          )
+        )
+        && incoming().keys().hasAll(['uid', 'name', 'email', 'role', 'teamId'])
+        && incoming().keys().size() == 5;
+
+      allow update: if isEmailVerified() && (
+        isAdmin() || (
+          userId == request.auth.uid 
+          && incoming().uid == existing().uid
+          && incoming().email == existing().email
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // --- WHITELIST RULES ---
+    match /whitelist/{email} {
+      allow get: if isSignedIn() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      allow list, write: if isAdmin();
+    }
+
+    // --- TEAMS RULES ---
+    match /teams/{teamId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(); // Teams creation and deletion is strictly an admin job
+    }
+
+    // --- REPORTS RULES ---
+    match /reports/{reportId} {
+      
+      // Helper to validate the Report payload schema during creation
+      function isValidReport(data) {
+        return data.keys().hasAll(['id', 'userId', 'teamId', 'date', 'todayWork', 'blockers', 'tomorrowPlan', 'status', 'reviewComment', 'reviewedBy', 'reviewedAt', 'createdAt'])
+          && (data.keys().size() == 12 || (data.keys().size() == 14 && data.keys().hasAll(['isRestDay', 'restReason'])))
+          && data.id is string && data.id.size() <= 128
+          && data.userId == request.auth.uid
+          && data.teamId is string && data.teamId.size() <= 128
+          && data.date is string && data.date.size() == 10
+          && data.todayWork is string && data.todayWork.size() <= 5000
+          && data.blockers is string && data.blockers.size() <= 5000
+          && data.tomorrowPlan is string && data.tomorrowPlan.size() <= 5000
+          && data.status in ['pending', 'approved', 'rejected']
+          && data.reviewComment is string && data.reviewComment.size() <= 2000
+          && data.reviewedBy is string
+          && data.createdAt == request.time
+          && (!('isRestDay' in data) || (data.isRestDay is bool && data.restReason is string && data.restReason.size() <= 1000));
+      }
+
+      // Read rules: 
+      // Admin: View all
+      // Reviewer: View if report belongs to assigned team or they are reviewer
+      // Student: View if own report OR teammate report (shared teamId match)
+      allow get: if isEmailVerified() && (
+        isAdmin() ||
+        (isReviewer() && getUserTeam(request.auth.uid) == existing().teamId) ||
+        (isStudent() && getUserTeam(request.auth.uid) == existing().teamId)
+      );
+
+      allow list: if isEmailVerified() && (
+        isAdmin() ||
+        (isReviewer() && getUserTeam(request.auth.uid) == resource.data.teamId) ||
+        (isStudent() && getUserTeam(request.auth.uid) == resource.data.teamId)
+      );
+
+      // Create rules: Only students on a team can create pending reports
+      allow create: if isEmailVerified()
+        && isValidId(reportId)
+        && isValidReport(incoming())
+        && isStudent()
+        && incoming().status == 'pending'
+        && incoming().teamId == getUserTeam(request.auth.uid)
+        && incoming().teamId != '' // Must be assigned to a team to submit report
+        && exists(/databases/$(database)/documents/teams/$(incoming().teamId));
+
+      // Update rules: Split action pattern
+      allow update: if isEmailVerified() && (
+        isAdmin() || (
+          // Action 1: Student edits pending report
+          isStudent() 
+          && existing().userId == request.auth.uid
+          && existing().status == 'pending' // Cannot edit approved or rejected reports
+          && incoming().status == 'pending'
+          && incoming().userId == existing().userId
+          && incoming().teamId == existing().teamId
+          && incoming().date == existing().date
+          && incoming().createdAt == existing().createdAt
+          && incoming().todayWork is string && incoming().todayWork.size() <= 5000
+          && incoming().blockers is string && incoming().blockers.size() <= 5000
+          && incoming().tomorrowPlan is string && incoming().tomorrowPlan.size() <= 5000
+          && (!('isRestDay' in incoming()) || (incoming().isRestDay is bool && incoming().restReason is string && incoming().restReason.size() <= 1000))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['todayWork', 'blockers', 'tomorrowPlan', 'isRestDay', 'restReason'])
+        ) || (
+          // Action 2: Reviewer reviews a pending report for their assigned team
+          isReviewer()
+          && getUserTeam(request.auth.uid) == existing().teamId
+          && existing().status == 'pending' // Can only transition from pending
+          && incoming().status in ['approved', 'rejected']
+          && incoming().userId == existing().userId
+          && incoming().teamId == existing().teamId
+          && incoming().date == existing().date
+          && incoming().todayWork == existing().todayWork
+          && incoming().blockers == existing().blockers
+          && incoming().tomorrowPlan == existing().tomorrowPlan
+          && incoming().createdAt == existing().createdAt
+          && incoming().reviewedBy == request.auth.uid
+          && incoming().reviewedAt == request.time
+          && incoming().reviewComment is string && incoming().reviewComment.size() <= 2000
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewComment', 'reviewedBy', 'reviewedAt'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // --- NOTIFICATIONS RULES ---
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+  }
+}
