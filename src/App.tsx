@@ -87,8 +87,10 @@ export default function App() {
   const [gmailConnected, setGmailConnected] = useState<boolean>(false);
 
   // Filters State
-  const [filterDate, setFilterDate] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [filterStatus, setFilterStatus] = useState<string>('pending');
   const [searchTerm, setSearchTerm] = useState<string>('');
   
   // Admin Creation Forms State
