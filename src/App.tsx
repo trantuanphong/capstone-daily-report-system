@@ -496,76 +496,76 @@ export default function App() {
       });
 
       // Fetch dynamic student profile data for SMTP email simulation log
-      const reportSnap = await getDoc(docRef);
-      if (reportSnap.exists()) {
-        const rData = reportSnap.data();
-        const studentUid = rData.userId;
-        const studentProfile = allUsers.find(u => u.uid === studentUid);
-        const studentEmail = studentProfile?.email || '';
-        const studentName = studentProfile?.name || 'Sinh viên';
+//       const reportSnap = await getDoc(docRef);
+//       if (reportSnap.exists()) {
+//         const rData = reportSnap.data();
+//         const studentUid = rData.userId;
+//         const studentProfile = allUsers.find(u => u.uid === studentUid);
+//         const studentEmail = studentProfile?.email || '';
+//         const studentName = studentProfile?.name || 'Sinh viên';
         
-        const teacherEmail = userProfile?.email || 'phongtt35@fpt.edu.vn';
-        const teacherName = userProfile?.name || 'Giáo viên hướng dẫn';
+//         const teacherEmail = userProfile?.email || 'phongtt35@fpt.edu.vn';
+//         const teacherName = userProfile?.name || 'Giáo viên hướng dẫn';
         
-        const statusTextVn = status === 'approved' ? 'ĐÃ ĐƯỢC PHÊ DUYỆT' : 'KHÔNG ĐƯỢC DUYỆT / YÊU CẦU CHỈNH SỬA';
-        const mailSubject = `[Capstone Report] Kết quả đánh giá báo cáo ngày ${rData.date}`;
-        const mailBody = `Thành viên gửi: ${studentName} (${studentEmail})
-Dự án Nhóm: ${teamNameMap[rData.teamId] || 'Nhóm Đồ án'}
+//         const statusTextVn = status === 'approved' ? 'ĐÃ ĐƯỢC PHÊ DUYỆT' : 'KHÔNG ĐƯỢC DUYỆT / YÊU CẦU CHỈNH SỬA';
+//         const mailSubject = `[Capstone Report] Kết quả đánh giá báo cáo ngày ${rData.date}`;
+//         const mailBody = `Thành viên gửi: ${studentName} (${studentEmail})
+// Dự án Nhóm: ${teamNameMap[rData.teamId] || 'Nhóm Đồ án'}
 
-Giáo viên hướng dẫn (${teacherName} - ${teacherEmail}) đã đánh giá báo cáo ngày ${rData.date} của bạn:
+// Giáo viên hướng dẫn (${teacherName} - ${teacherEmail}) đã đánh giá báo cáo ngày ${rData.date} của bạn:
 
-Trở về trạng thái: ${statusTextVn}
+// Trở về trạng thái: ${statusTextVn}
 
-Nội dung nhận xét/phản hồi từ Giáo viên:
-"${comment || 'Giáo viên phê duyệt báo cáo thành công.'}"
+// Nội dung nhận xét/phản hồi từ Giáo viên:
+// "${comment || 'Giáo viên phê duyệt báo cáo thành công.'}"
 
-Vui lòng kiểm tra lại báo cáo trên cổng thông tin Capstone Report.
+// Vui lòng kiểm tra lại báo cáo trên cổng thông tin Capstone Report.
 
-Trân trọng,
-Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
+// Trân trọng,
+// Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
 
-        const accessToken = getCachedAccessToken();
-        let gmailSentResult = false;
-        let errorMessage = '';
+//         const accessToken = getCachedAccessToken();
+//         let gmailSentResult = false;
+//         let errorMessage = '';
 
-        if (accessToken && studentEmail) {
-          try {
-            await sendGmailNotification(accessToken, studentEmail, mailSubject, mailBody);
-            gmailSentResult = true;
-          } catch (gErr: any) {
-            console.error("Lỗi gửi Gmail:", gErr);
-            errorMessage = gErr.message || String(gErr);
-          }
-        }
+//         if (accessToken && studentEmail) {
+//           try {
+//             await sendGmailNotification(accessToken, studentEmail, mailSubject, mailBody);
+//             gmailSentResult = true;
+//           } catch (gErr: any) {
+//             console.error("Lỗi gửi Gmail:", gErr);
+//             errorMessage = gErr.message || String(gErr);
+//           }
+//         }
 
-        const notifId = `email_${Date.now()}_${studentUid}`;
-        await setDoc(doc(db, 'notifications', notifId), {
-          id: notifId,
-          recipientUid: studentUid,
-          recipientEmail: studentEmail,
-          senderEmail: teacherEmail,
-          senderName: teacherName,
-          subject: mailSubject,
-          body: mailBody,
-          createdAt: serverTimestamp(),
-          read: false,
-          reportId: reportId,
-          reportDate: rData.date,
-          status: status,
-          gmailSent: gmailSentResult,
-          gmailError: errorMessage || null
-        });
+//         const notifId = `email_${Date.now()}_${studentUid}`;
+//         await setDoc(doc(db, 'notifications', notifId), {
+//           id: notifId,
+//           recipientUid: studentUid,
+//           recipientEmail: studentEmail,
+//           senderEmail: teacherEmail,
+//           senderName: teacherName,
+//           subject: mailSubject,
+//           body: mailBody,
+//           createdAt: serverTimestamp(),
+//           read: false,
+//           reportId: reportId,
+//           reportDate: rData.date,
+//           status: status,
+//           gmailSent: gmailSentResult,
+//           gmailError: errorMessage || null
+//         });
 
-        if (gmailSentResult) {
-          alert(`Đã phê duyệt báo cáo và gửi email thông báo qua Gmail thành công tới: ${studentEmail}`);
-        } else if (studentEmail) {
-          if (!accessToken) {
-            alert(`Đã lưu phê duyệt báo cáo thành công! Lưu ý: Email chưa gửi được do tài khoản chưa kết nối tích hợp Gmail. Vui lòng nhấp vào biểu tượng kết nối Gmail ở góc màn hình để nhận quyền hỗ trợ gửi thư.`);
-          } else {
-            alert(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên xảy ra lỗi từ API của Gmail: ${errorMessage}`);
-          }
-        }
-      }
+//         if (gmailSentResult) {
+//           alert(`Đã phê duyệt báo cáo và gửi email thông báo qua Gmail thành công tới: ${studentEmail}`);
+//         } else if (studentEmail) {
+//           if (!accessToken) {
+//             alert(`Đã lưu phê duyệt báo cáo thành công! Lưu ý: Email chưa gửi được do tài khoản chưa kết nối tích hợp Gmail. Vui lòng nhấp vào biểu tượng kết nối Gmail ở góc màn hình để nhận quyền hỗ trợ gửi thư.`);
+//           } else {
+//             alert(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên xảy ra lỗi từ API của Gmail: ${errorMessage}`);
+//           }
+//         }
+//       }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `reports/${reportId}`);
     }
