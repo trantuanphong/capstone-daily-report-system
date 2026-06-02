@@ -4,7 +4,7 @@
  */
 
 import { FileText } from 'lucide-react';
-import { Report, UserProfile } from '../types';
+import { Report, UserProfile, ReportTask, ReportTaskPlan } from '../types';
 import ReportForm from './ReportForm';
 
 interface StudentDashboardProps {
@@ -21,6 +21,8 @@ interface StudentDashboardProps {
     tomorrowPlan: string;
     isRestDay?: boolean;
     restReason?: string;
+    tasks?: ReportTask[];
+    planTasks?: ReportTaskPlan[];
   }) => Promise<void>;
 }
 

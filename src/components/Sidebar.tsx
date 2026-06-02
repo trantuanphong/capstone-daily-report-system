@@ -102,7 +102,7 @@ export default function Sidebar({ currentTab, setCurrentTab, userProfile, teamNa
       <div className="p-6 border-b border-gray-200 dark:border-gray-800">
         <h1 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
           <CheckSquare className="h-6 w-6 text-sky-500" />
-          <span>Capstone Daily</span>
+          <span>Capstone Report</span>
         </h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Hệ thống báo cáo hàng ngày</p>
       </div>

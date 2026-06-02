@@ -17,7 +17,8 @@ import {
   ChevronDown, 
   ChevronUp, 
   Send,
-  AlertTriangle
+  AlertTriangle,
+  CheckSquare
 } from 'lucide-react';
 
 interface ReportCardProps {
@@ -156,6 +157,40 @@ export default function ReportCard({ report, userRole, userTeamId, onReview }: R
 
       {/* Body Area */}
       <div className="p-5 space-y-4">
+        {/* Progress task tracking meter list */}
+        {report.tasks && report.tasks.length > 0 && (
+          <div className="p-4 rounded-xl border border-violet-100 dark:border-violet-900 bg-violet-50/20 dark:bg-violet-950/5">
+            <h5 className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest flex items-center gap-1.5 mb-3">
+              <CheckSquare className="h-4 w-4" />
+              <span>Theo dõi tiến độ chức năng (%)</span>
+            </h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {report.tasks.map((t, index) => (
+                <div key={index} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xs flex flex-col justify-between space-y-2">
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-805 dark:text-gray-100 leading-tight block break-all" title={t.name}>{t.name}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.progress === 100 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-450'}`}>{t.progress}%</span>
+                    </div>
+                    {/* Progress slider bar as visual feedback */}
+                    <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
+                      <div 
+                        className={`h-full transition-all duration-300 ${t.progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                        style={{ width: `${t.progress}%` }} 
+                      />
+                    </div>
+                  </div>
+                  {t.reasonForRegress && t.reasonForRegress.trim() && (
+                    <div className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold bg-amber-50/50 dark:bg-amber-950/10 p-2 rounded-lg border border-amber-100/30 mt-1 leading-relaxed">
+                      💡 <b>Lý do lùi tiến độ:</b> {t.reasonForRegress}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Today's accomplishments */}
         <div>
           <h5 className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wide">Kết quả công việc hôm nay</h5>

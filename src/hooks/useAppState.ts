@@ -32,7 +32,7 @@ import {
   OperationType,
   getCachedAccessToken
 } from '../firebase';
-import { UserProfile, Team, Report } from '../types';
+import { UserProfile, Team, Report, ReportTask, ReportTaskPlan } from '../types';
 import { sendGmailNotification } from '../gmailSender';
 
 export function useAppState() {
@@ -373,9 +373,11 @@ export function useAppState() {
     tomorrowPlan: string;
     isRestDay?: boolean;
     restReason?: string;
+    tasks?: ReportTask[];
+    planTasks?: ReportTaskPlan[];
   }) => {
     if (!userProfile || !userProfile.teamId) {
-      throw new Error("You must be assigned to an active capstone team by an administrator before reporting progress.");
+       throw new Error("You must be assigned to an active capstone team by an administrator before reporting progress.");
     }
 
     const reportId = reportData.id || `${userProfile.uid}_${reportData.date}`;
@@ -391,6 +393,8 @@ export function useAppState() {
           tomorrowPlan: reportData.tomorrowPlan,
           isRestDay: isRest,
           restReason: reportData.restReason || '',
+          tasks: reportData.tasks || [],
+          planTasks: reportData.planTasks || [],
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, pathText);
@@ -411,6 +415,8 @@ export function useAppState() {
         createdAt: serverTimestamp(),
         isRestDay: isRest,
         restReason: reportData.restReason || '',
+        tasks: reportData.tasks || [],
+        planTasks: reportData.planTasks || [],
       };
 
       try {

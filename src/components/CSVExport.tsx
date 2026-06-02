@@ -24,6 +24,7 @@ export default function CSVExport({ reports, filename = 'Daily-Capstone-Reports.
       'ID Nhóm',
       'Tên Nhóm',
       'Công việc Hôm nay',
+      'Tiến độ Chức năng (Task)',
       'Khó khăn Vướng mắc',
       'Kế hoạch Ngày mai',
       'Trạng thái phê duyệt',
@@ -32,21 +33,28 @@ export default function CSVExport({ reports, filename = 'Daily-Capstone-Reports.
     ];
 
     // Map rows
-    const rows = reports.map((report) => [
-      report.id,
-      report.date,
-      report.userId,
-      report.userName || 'Sinh viên chưa rõ',
-      report.teamId,
-      report.teamName || 'Chưa gán nhóm',
-      // Clean texts from commas and newlines
-      `"${(report.todayWork || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${(report.blockers || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${(report.tomorrowPlan || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      report.status === 'approved' ? 'Đã duyệt' : report.status === 'rejected' ? 'Bị từ chối' : 'Chờ duyệt',
-      `"${(report.reviewComment || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      report.reviewedByName || report.reviewedBy || 'Chưa duyệt',
-    ]);
+    const rows = reports.map((report) => {
+      const taskStr = report.tasks && report.tasks.length > 0
+        ? report.tasks.map(t => `${t.name}: ${t.progress}%${t.reasonForRegress ? ` (Lý do: ${t.reasonForRegress})` : ''}`).join(' | ')
+        : 'Không có';
+
+      return [
+        report.id,
+        report.date,
+        report.userId,
+        report.userName || 'Sinh viên chưa rõ',
+        report.teamId,
+        report.teamName || 'Chưa gán nhóm',
+        // Clean texts from commas and newlines
+        `"${(report.todayWork || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        `"${taskStr.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        `"${(report.blockers || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        `"${(report.tomorrowPlan || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        report.status === 'approved' ? 'Đã duyệt' : report.status === 'rejected' ? 'Bị từ chối' : 'Chờ duyệt',
+        `"${(report.reviewComment || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+        report.reviewedByName || report.reviewedBy || 'Chưa duyệt',
+      ];
+    });
 
     // Build content
     const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');

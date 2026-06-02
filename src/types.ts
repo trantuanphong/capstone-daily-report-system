@@ -21,6 +21,17 @@ export interface Team {
   createdAt?: any;
 }
 
+export interface ReportTask {
+  name: string;
+  progress: number; // 0 - 100
+  reasonForRegress?: string; // Giải trình lý do nếu giảm % so với ngày trước
+}
+
+export interface ReportTaskPlan {
+  name: string;
+  targetProgress: number; // 0 - 100
+}
+
 export interface Report {
   id: string;
   userId: string;
@@ -40,6 +51,8 @@ export interface Report {
   createdAt: any; // Firestore Timestamp
   isRestDay?: boolean;
   restReason?: string;
+  tasks?: ReportTask[];
+  planTasks?: ReportTaskPlan[];
 }
 
 export interface WhitelistEntry {

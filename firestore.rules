@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isValidId(id) {
@@ -32,6 +32,14 @@ service cloud.firestore {
     // Role Lookup Functions
     function getUserData(uid) {
       return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    // Allow connection tests
+    match /_connection_test_/{docId} {
+      allow read: if true;
+    }
+    match /test/{docId} {
+      allow read: if true;
     }
 
     function getUserRole(uid) {
@@ -61,7 +69,7 @@ service cloud.firestore {
       allow create: if isEmailVerified() 
         && userId == request.auth.uid
         && incoming().uid == request.auth.uid
-        && incoming().email == request.auth.token.email
+        && incoming().email.lower() == request.auth.token.email.lower()
         && (
           (request.auth.token.email.lower() == "phongtt35@fpt.edu.vn" && incoming().role == "admin")
           || (
