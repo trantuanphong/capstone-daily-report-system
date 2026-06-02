@@ -38,6 +38,7 @@ export default function Sidebar({ currentTab, setCurrentTab, userProfile, teamNa
       case 'admin':
         return [
           { id: 'stats', label: 'Thống kê Tổng quan', icon: BarChart2 },
+          { id: 'admin-member-stats', label: 'Thống kê Thành viên', icon: Award },
           { id: 'admin-users', label: 'Quản lý Người dùng', icon: Users },
           { id: 'admin-teams', label: 'Quản lý Nhóm', icon: Settings },
           { id: 'admin-reports', label: 'Tất cả Báo cáo', icon: FileText },
