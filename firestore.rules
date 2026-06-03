@@ -111,7 +111,7 @@ service cloud.firestore {
       // Helper to validate the Report payload schema during creation
       function isValidReport(data) {
         return data.keys().hasAll(['id', 'userId', 'teamId', 'date', 'todayWork', 'blockers', 'tomorrowPlan', 'status', 'reviewComment', 'reviewedBy', 'reviewedAt', 'createdAt'])
-          && (data.keys().size() == 12 || (data.keys().size() == 14 && data.keys().hasAll(['isRestDay', 'restReason'])))
+          && data.keys().size() <= 16
           && data.id is string && data.id.size() <= 128
           && data.userId == request.auth.uid
           && data.teamId is string && data.teamId.size() <= 128
@@ -123,7 +123,10 @@ service cloud.firestore {
           && data.reviewComment is string && data.reviewComment.size() <= 2000
           && data.reviewedBy is string
           && data.createdAt == request.time
-          && (!('isRestDay' in data) || (data.isRestDay is bool && data.restReason is string && data.restReason.size() <= 1000));
+          && (!('isRestDay' in data) || data.isRestDay is bool)
+          && (!('restReason' in data) || (data.restReason is string && data.restReason.size() <= 1000))
+          && (!('tasks' in data) || (data.tasks is list && data.tasks.size() <= 50))
+          && (!('planTasks' in data) || (data.planTasks is list && data.planTasks.size() <= 50));
       }
 
       // Read rules: 
@@ -168,7 +171,9 @@ service cloud.firestore {
           && incoming().blockers is string && incoming().blockers.size() <= 5000
           && incoming().tomorrowPlan is string && incoming().tomorrowPlan.size() <= 5000
           && (!('isRestDay' in incoming()) || (incoming().isRestDay is bool && incoming().restReason is string && incoming().restReason.size() <= 1000))
-          && incoming().diff(existing()).affectedKeys().hasOnly(['todayWork', 'blockers', 'tomorrowPlan', 'isRestDay', 'restReason'])
+          && (!('tasks' in incoming()) || (incoming().tasks is list && incoming().tasks.size() <= 50))
+          && (!('planTasks' in incoming()) || (incoming().planTasks is list && incoming().planTasks.size() <= 50))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['todayWork', 'blockers', 'tomorrowPlan', 'isRestDay', 'restReason', 'tasks', 'planTasks'])
         ) || (
           // Action 2: Reviewer reviews a pending report for their assigned team
           isReviewer()

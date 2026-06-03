@@ -41,7 +41,15 @@
         "reviewedAt": { "type": "object", "description": "Timestamp of review" },
         "createdAt": { "type": "object", "description": "Timestamp of creation" },
         "isRestDay": { "type": "boolean", "description": "Whether the day was marked as a rest day" },
-        "restReason": { "type": "string", "description": "Reason for taking a rest day" }
+        "restReason": { "type": "string", "description": "Reason for taking a rest day" },
+        "tasks": {
+          "type": "array",
+          "description": "Progress of specific task functions yesterday"
+        },
+        "planTasks": {
+          "type": "array",
+          "description": "Target goals for specific task plans today"
+        }
       },
       "required": ["id", "userId", "teamId", "date", "todayWork", "blockers", "tomorrowPlan", "status"]
     },
