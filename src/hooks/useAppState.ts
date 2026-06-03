@@ -472,17 +472,17 @@ export function useAppState() {
         const teacherEmail = userProfile?.email || 'phongtt35@fpt.edu.vn';
         const teacherName = userProfile?.name || 'Giáo viên hướng dẫn';
         
-        const statusTextVn = status === 'approved' ? 'ĐÃ ĐƯỢC PHÊ DUYÊT' : 'KHÔNG ĐƯỢC DUYÊT / YÊU CẦU CHỈNH SỬA';
+        const statusTextVn = status === 'approved' ? 'ĐÃ ĐƯỢC PHÊ DUYÊT' : 'CHƯA ĐƯỢC DUYỆT (CẦN CHỈNH SỬA)';
         const mailSubject = `[Capstone Report] Kết quả đánh giá báo cáo ngày ${rData.date}`;
         const mailBody = `Thành viên gửi: ${studentName} (${studentEmail})
 Dự án Nhóm: ${teamNameMap[rData.teamId] || 'Nhóm Đồ án'}
 
 Giáo viên hướng dẫn (${teacherName} - ${teacherEmail}) đã đánh giá báo cáo ngày ${rData.date} của bạn:
 
-Trở về trạng thái: ${statusTextVn}
+Kết quả đánh giá: ${statusTextVn}
 
 Nội dung nhận xét/phản hồi từ Giáo viên:
-"${comment || 'Giáo viên phê duyệt báo cáo thành công.'}"
+"${comment || 'Giáo viên đã thông qua báo cáo tiến độ.'}"
 
 Vui lòng kiểm tra lại báo cáo trên cổng thông tin Capstone Report.
 
@@ -492,46 +492,63 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
         let gmailSentResult = false;
         let errorMessage = '';
 
-        // Retrieve SMTP config securely from email_config collection
-        let smtpConfigToUse: any = null;
-        try {
-          const smtpSnap = await getDoc(doc(db, 'email_config', 'smtp'));
-          if (smtpSnap.exists()) {
-            smtpConfigToUse = smtpSnap.data();
+        const oauthToken = getCachedAccessToken();
+        if (oauthToken) {
+          try {
+            console.log("Attempting to send notification email via Google Gmail API...");
+            await sendGmailNotification(oauthToken, studentEmail, mailSubject, mailBody);
+            gmailSentResult = true;
+          } catch (gmailErr: any) {
+            console.warn("Gmail API direct sending failed, falling back to SMTP...", gmailErr);
+            errorMessage = gmailErr.message || String(gmailErr);
           }
-        } catch (smtpErr) {
-          console.error("Failed to read secure SMTP configuration from firestore:", smtpErr);
         }
 
-        if (smtpConfigToUse && smtpConfigToUse.user && smtpConfigToUse.pass) {
+        if (!gmailSentResult) {
+          // Retrieve SMTP config securely from email_config collection
+          let smtpConfigToUse: any = null;
           try {
-            const apiRes = await fetch('/api/send-email', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                smtpUser: smtpConfigToUse.user,
-                smtpPass: smtpConfigToUse.pass,
-                smtpHost: smtpConfigToUse.host || 'smtp.gmail.com',
-                smtpPort: smtpConfigToUse.port || 465,
-                to: studentEmail,
-                subject: mailSubject,
-                body: mailBody
-              })
-            });
-
-            if (apiRes.ok) {
-              gmailSentResult = true;
-            } else {
-              const errData = await apiRes.json();
-              errorMessage = errData.error || 'Lỗi không xác định khi gọi API gửi email.';
+            const smtpSnap = await getDoc(doc(db, 'email_config', 'smtp'));
+            if (smtpSnap.exists()) {
+              smtpConfigToUse = smtpSnap.data();
             }
-          } catch (apiErr: any) {
-            errorMessage = apiErr.message || String(apiErr);
+          } catch (smtpErr) {
+            console.error("Failed to read secure SMTP configuration from firestore:", smtpErr);
           }
-        } else {
-          errorMessage = 'Chưa cấu hình tài khoản Email gửi thư chuyên dùng (SMTP App Password) trong phần quản trị / Cấu hình email.';
+
+          if (smtpConfigToUse && smtpConfigToUse.user && smtpConfigToUse.pass) {
+            try {
+              const apiRes = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  smtpUser: smtpConfigToUse.user,
+                  smtpPass: smtpConfigToUse.pass,
+                  smtpHost: smtpConfigToUse.host || 'smtp.gmail.com',
+                  smtpPort: smtpConfigToUse.port || 465,
+                  to: studentEmail,
+                  subject: mailSubject,
+                  body: mailBody
+                })
+              });
+
+              if (apiRes.ok) {
+                gmailSentResult = true;
+                errorMessage = ''; // Clear previous error
+              } else {
+                const errData = await apiRes.json();
+                errorMessage = errData.error || 'Lỗi không xác định khi gọi API gửi email.';
+              }
+            } catch (apiErr: any) {
+              errorMessage = apiErr.message || String(apiErr);
+            }
+          } else {
+            errorMessage = errorMessage 
+              ? `Lỗi gửi trực tiếp bằng tài khoản Google Gmail (${errorMessage}) và chưa cấu hình tài khoản Email SMTP dự phòng.`
+              : 'Chưa cấu hình tài khoản Email gửi thư chuyên dùng (SMTP App Password) trong phần quản trị / Cấu hình email.';
+          }
         }
 
         const notifId = `email_${Date.now()}_${studentUid}`;
@@ -553,9 +570,9 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
         });
 
         if (gmailSentResult) {
-          alert(`Đã phê duyệt báo cáo và gửi email thông báo tự động (qua email dedicated): ${studentEmail}`);
+          alert(`Đã phê duyệt báo cáo và gửi email thông báo tự động thành công: ${studentEmail}`);
         } else if (studentEmail) {
-          alert(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên xảy ra lỗi gửi email từ SMTP: ${errorMessage}`);
+          alert(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên không gửi được email: ${errorMessage}`);
         }
       }
     } catch (err) {

@@ -156,71 +156,154 @@ export default function ReportCard({ report, userRole, userTeamId, onReview }: R
       </div>
 
       {/* Body Area */}
-      <div className="p-5 space-y-4">
-        {/* Progress task tracking meter list */}
-        {report.tasks && report.tasks.length > 0 && (
-          <div className="p-4 rounded-xl border border-violet-100 dark:border-violet-900 bg-violet-50/20 dark:bg-violet-950/5">
-            <h5 className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest flex items-center gap-1.5 mb-3">
-              <CheckSquare className="h-4 w-4" />
-              <span>Theo dõi tiến độ chức năng (%)</span>
-            </h5>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {report.tasks.map((t, index) => (
-                <div key={index} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xs flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-805 dark:text-gray-100 leading-tight block break-all" title={t.name}>{t.name}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.progress === 100 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-450'}`}>{t.progress}%</span>
-                    </div>
-                    {/* Progress slider bar as visual feedback */}
-                    <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
-                      <div 
-                        className={`h-full transition-all duration-300 ${t.progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                        style={{ width: `${t.progress}%` }} 
-                      />
-                    </div>
-                  </div>
-                  {t.reasonForRegress && t.reasonForRegress.trim() && (
-                    <div className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold bg-amber-50/50 dark:bg-amber-950/10 p-2 rounded-lg border border-amber-100/30 mt-1 leading-relaxed">
-                      💡 <b>Lý do lùi tiến độ:</b> {t.reasonForRegress}
-                    </div>
-                  )}
-                </div>
-              ))}
+      <div className="p-5 space-y-5">
+        {/* Rest Day Highlight */}
+        {report.isRestDay && (
+          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-900/40 flex items-start gap-3 animate-fade-in">
+            <span className="text-2xl pt-0.5">☕</span>
+            <div>
+              <h5 className="text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-widest">Đăng ký Nghỉ phép / Vắng mặt</h5>
+              <p className="text-sm font-semibold text-slate-800 dark:text-white mt-1">Lý do: {report.restReason || 'Nghỉ phép cá nhân / Ngày lễ'}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                Hệ thống tự động tiếp nhận đăng ký vắng mặt của sinh viên trong ngày này. các chỉ tiêu kiểm soát tiến độ cơ bản được bỏ qua.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Today's accomplishments */}
-        <div>
-          <h5 className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wide">Kết quả công việc hôm nay</h5>
-          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.todayWork}</p>
-        </div>
+        {/* Structured Task & Plan Grid (Lecturer View Highlights) */}
+        {!report.isRestDay && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Column A: Yesterday's Real Progress Tasks */}
+            <div className="p-4 rounded-2xl border border-sky-100 dark:border-sky-900/30 bg-sky-50/10 dark:bg-sky-950/5 flex flex-col h-full">
+              <h5 className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-widest flex items-center gap-1.5 mb-3 pb-2 border-b border-sky-100/30">
+                <CheckSquare className="h-4 w-4" />
+                <span>Tiến độ thực tế hôm qua</span>
+              </h5>
+              {report.tasks && report.tasks.length > 0 ? (
+                <div className="space-y-3 flex-1">
+                  {report.tasks.map((t, index) => (
+                    <div key={index} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-900 shadow-xs space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-805 dark:text-gray-100 break-all leading-tight">
+                          {t.name}
+                        </span>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${t.progress === 100 ? 'bg-emerald-55 text-emerald-700 border border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-950' : 'bg-sky-50 text-sky-700 border border-sky-100 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-950'}`}>
+                          {t.progress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-300 ${t.progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                          style={{ width: `${t.progress}%` }} 
+                        />
+                      </div>
+                      {t.reasonForRegress && t.reasonForRegress.trim() && (
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold bg-amber-50/50 dark:bg-amber-950/10 p-2 rounded-lg border border-amber-100/30 mt-1 leading-relaxed">
+                          ⚠️ <b>Lý do lùi tiến độ:</b> {t.reasonForRegress}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
+                  <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">Chưa khai báo task nào.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Column B: Today's Target Plans */}
+            <div className="p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/10 dark:bg-emerald-950/5 flex flex-col h-full">
+              <h5 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 mb-3 pb-2 border-b border-emerald-100/30">
+                <CheckSquare className="h-4 w-4" />
+                <span>Mục tiêu chỉ tiêu hôm nay</span>
+              </h5>
+              {report.planTasks && report.planTasks.length > 0 ? (
+                <div className="space-y-3 flex-1">
+                  {report.planTasks.map((pt, index) => {
+                    // Check if Yesterday has this task to show a comparison badge
+                    const matchingYesterday = report.tasks?.find(t => t.name.trim().toLowerCase() === pt.name.trim().toLowerCase());
+                    return (
+                      <div key={index} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-900 shadow-xs space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-805 dark:text-gray-100 break-all leading-tight">
+                            {pt.name}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-305 dark:border-emerald-950">
+                            {pt.targetProgress}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 transition-all duration-300"
+                            style={{ width: `${pt.targetProgress}%` }} 
+                          />
+                        </div>
+                        {matchingYesterday && (
+                          <div className="text-[10px] text-sky-800 dark:text-sky-305 font-medium bg-sky-50/55 dark:bg-sky-950/10 p-1.5 rounded-md border border-sky-100/30 leading-snug">
+                            📈 Hôm qua đạt: <b className="font-bold">{matchingYesterday.progress}%</b> &rarr; Hôm nay hướng tới: <b className="font-bold">{pt.targetProgress}%</b>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
+                  <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">Chưa khai báo mục tiêu.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Text descriptions if legacy reports or requested details */}
+        {(!report.tasks || report.tasks.length === 0) && !report.isRestDay && (
+          <div className="space-y-4">
+            <div>
+              <h5 className="text-xs font-bold text-sky-650 dark:text-sky-400 uppercase tracking-wide">Kết quả công việc hôm qua</h5>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.todayWork}</p>
+            </div>
+            <div>
+              <h5 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Kế hoạch, mục tiêu hôm nay</h5>
+              <p className="text-sm text-gray-750 dark:text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.tomorrowPlan}</p>
+            </div>
+          </div>
+        )}
 
         {/* Blockers highlighting */}
         {report.blockers && report.blockers.trim() !== '' && (
           <div className="p-3.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100/30 dark:border-rose-900/40">
             <h5 className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide flex items-center gap-1.5">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500" />
               Khó khăn, vướng mắc gặp phải
             </h5>
-            <p className="text-sm text-gray-750 dark:text-rose-200 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.blockers}</p>
+            <p className="text-sm text-gray-750 dark:text-rose-250 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.blockers}</p>
           </div>
+        )}
+
+        {/* Expanded complete text-view toggle for lecturers if they want to read exact formatted log strings */}
+        {(!report.isRestDay && (report.tasks && report.tasks.length > 0)) && (
+          <details className="text-[11px] text-gray-400 dark:text-gray-500 select-none cursor-pointer">
+            <summary className="hover:text-gray-600 dark:hover:text-gray-300 font-semibold focus:outline-none">Xem bản tóm tắt nội dung sinh viên nộp</summary>
+            <div className="mt-3 p-4 bg-gray-50/40 dark:bg-gray-950/20 border border-gray-150/50 dark:border-gray-800 rounded-xl space-y-3 cursor-default">
+              <div>
+                <span className="font-bold block text-gray-500 mb-1">Công việc hôm qua:</span>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans select-text leading-relaxed">{report.todayWork}</p>
+              </div>
+              <div className="border-t border-gray-150/40 dark:border-gray-800/40 pt-3">
+                <span className="font-bold block text-gray-500 mb-1">Mục tiêu hôm nay:</span>
+                <p className="text-sm text-gray-750 dark:text-gray-300 whitespace-pre-wrap font-sans select-text leading-relaxed">{report.tomorrowPlan}</p>
+              </div>
+            </div>
+          </details>
         )}
 
         {/* Expanded planning and submission timestamps */}
         {(expanded || report.status !== 'pending' || canReview) && (
-          <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700 animate-slide-down">
-            {/* Tomorrow Plan */}
-            <div>
-              <h5 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Kế hoạch, mục tiêu ngày mai</h5>
-              <p className="text-sm text-gray-750 dark:text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap">{report.tomorrowPlan}</p>
-            </div>
-
-            {/* Submission Time */}
-            <div className="text-[11px] text-gray-400 dark:text-gray-500">
-              Thời gian nộp bài: {formattedDate(report.createdAt)}
-            </div>
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 text-[11px] text-gray-400 dark:text-gray-500 flex justify-between items-center flex-wrap gap-2">
+            <span>Thời gian nộp bài: <b>{formattedDate(report.createdAt)}</b></span>
           </div>
         )}
 

@@ -322,78 +322,70 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
       submittedTomorrowPlan = 'Quay lại công việc và lịch trình dự án Capstone chuẩn sau ngày nghỉ';
     } else {
       // Validate yesterday's tasks
-      if (tasks.length > 0) {
-        for (const t of tasks) {
-          if (!t.name.trim()) {
-            setFormError("Vui lòng điền tên đầy đủ cho tất cả các Chức năng/Task ngày hôm qua.");
+      if (tasks.length === 0) {
+        setFormError("Báo cáo tiến độ hôm qua bắt buộc phải khai báo ít nhất một Chức năng / Task chi tiết (Chế độ Task đã được kích hoạt hoàn toàn).");
+        return;
+      }
+
+      for (const t of tasks) {
+        if (!t.name.trim()) {
+          setFormError("Vui lòng điền tên đầy đủ cho tất cả các Chức năng/Task ngày hôm qua.");
+          return;
+        }
+        if (t.progress < 0 || t.progress > 100) {
+          setFormError("Tiến độ task phải nằm trong khoảng từ 0% đến 100%.");
+          return;
+        }
+        const check = checkTaskStatus(t.name);
+        if (check.previousProgress !== null && t.progress < check.previousProgress) {
+          if (!t.reasonForRegress || !t.reasonForRegress.trim()) {
+            setFormError(`Bạn cần giải trình lý do vì sao task "${t.name}" có tiến độ thực tế giảm hoặc bị lùi so với tiến độ trước đó (Từ ${check.previousProgress}% xuống còn ${t.progress}%).`);
             return;
-          }
-          if (t.progress < 0 || t.progress > 100) {
-            setFormError("Tiến độ task phải nằm trong khoảng từ 0% đến 100%.");
-            return;
-          }
-          const check = checkTaskStatus(t.name);
-          if (check.previousProgress !== null && t.progress < check.previousProgress) {
-            if (!t.reasonForRegress || !t.reasonForRegress.trim()) {
-              setFormError(`Bạn cần giải trình lý do vì sao task "${t.name}" có tiến độ thực tế giảm hoặc bị lùi so với tiến độ trước đó (Từ ${check.previousProgress}% xuống còn ${t.progress}%).`);
-              return;
-            }
           }
         }
       }
 
       // Validate today's plan tasks
-      if (planTasks.length > 0) {
-        for (const pt of planTasks) {
-          if (!pt.name.trim()) {
-            setFormError("Vui lòng điền tên đầy đủ cho các Mục tiêu/Kế hoạch hôm nay.");
-            return;
-          }
-          if (pt.targetProgress < 0 || pt.targetProgress > 100) {
-            setFormError("Tiến độ mục tiêu phải nằm trong khoảng từ 0% đến 100%.");
-            return;
-          }
-          
-          // Cross-check: Target progress today cannot be less than real progress made yesterday
-          const matchingYesterday = tasks.find(
-            (t) => t.name.trim().toLowerCase() === pt.name.trim().toLowerCase()
-          );
-          if (matchingYesterday && pt.targetProgress < matchingYesterday.progress) {
-            setFormError(`Mục tiêu tiến độ hôm nay của task "${pt.name}" (${pt.targetProgress}%) không thể nhỏ hơn tiến độ thực tế đã đạt hôm qua (${matchingYesterday.progress}%).`);
-            return;
-          }
+      if (planTasks.length === 0) {
+        setFormError("Kế hoạch hôm nay bắt buộc phải khai báo ít nhất một Chức năng / Task mục tiêu cụ thể.");
+        return;
+      }
+
+      for (const pt of planTasks) {
+        if (!pt.name.trim()) {
+          setFormError("Vui lòng điền tên đầy đủ cho các Mục tiêu/Kế hoạch hôm nay.");
+          return;
+        }
+        if (pt.targetProgress < 0 || pt.targetProgress > 100) {
+          setFormError("Tiến độ mục tiêu phải nằm trong khoảng từ 0% đến 100%.");
+          return;
+        }
+        
+        // Cross-check: Target progress today cannot be less than real progress made yesterday
+        const matchingYesterday = tasks.find(
+          (t) => t.name.trim().toLowerCase() === pt.name.trim().toLowerCase()
+        );
+        if (matchingYesterday && pt.targetProgress < matchingYesterday.progress) {
+          setFormError(`Mục tiêu tiến độ hôm nay của task "${pt.name}" (${pt.targetProgress}%) không thể nhỏ hơn tiến độ thực tế đã đạt hôm qua (${matchingYesterday.progress}%).`);
+          return;
         }
       }
 
       // Format todayWork (Yesterday's Progress text) with tasks if present
-      if (tasks.length > 0) {
-        const listStr = tasks.map((t) => {
-          let line = `• Chức năng: ${t.name} (Tiến độ: ${t.progress}%)`;
-          if (t.reasonForRegress && t.reasonForRegress.trim()) {
-            line += ` [Giải trình lùi tiến độ: ${t.reasonForRegress.trim()}]`;
-          }
-          return line;
-        }).join('\n');
-        submittedTodayWork = `[DANH SÁCH TIẾN ĐỘ CHỨC NĂNG / TASK HÔM QUA]:\n${listStr}`;
-      } else {
-        if (!submittedTodayWork) {
-          setFormError("Kết quả công việc ngày hôm qua không được để trống!");
-          return;
+      const listStr = tasks.map((t) => {
+        let line = `• Chức năng: ${t.name} (Tiến độ: ${t.progress}%)`;
+        if (t.reasonForRegress && t.reasonForRegress.trim()) {
+          line += ` [Giải trình lùi tiến độ: ${t.reasonForRegress.trim()}]`;
         }
-      }
+        return line;
+      }).join('\n');
+      submittedTodayWork = `[DANH SÁCH TIẾN ĐỘ CHỨC NĂNG / TASK HÔM QUA]:\n${listStr}`;
 
       // Format tomorrowPlan (Today's Plan text) with planTasks if present
-      if (planTasks.length > 0) {
-        const planListStr = planTasks.map((pt) => {
-          return `• Chức năng: ${pt.name} (Chỉ tiêu hôm nay: ${pt.targetProgress}%)`;
-        }).join('\n');
-        submittedTomorrowPlan = `[DANH SÁCH MỤC TIÊU TIẾN ĐỘ HÔM NAY]:\n${planListStr}`;
-      } else {
-        if (!submittedTomorrowPlan) {
-          setFormError("Mục tiêu, kế hoạch ngày hôm nay không được để trống!");
-          return;
-        }
-      }
+      const planListStr = planTasks.map((pt) => {
+        return `• Chức năng: ${pt.name} (Chỉ tiêu hôm nay: ${pt.targetProgress}%)`;
+      }).join('\n');
+      submittedTomorrowPlan = `[DANH SÁCH MỤC TIÊU TIẾN ĐỘ HÔM NAY]:\n${planListStr}`;
 
       if (submittedTodayWork.length > 10000) {
         setFormError("Mô tả công việc hôm qua dán nhãn quá dài (tối đa 10000 ký tự).");
@@ -595,33 +587,22 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
           </div>
 
           {tasks.length === 0 ? (
-            <div className="space-y-4">
-              <div className="p-5 border-2 border-dashed border-gray-200 dark:border-gray-700/60 rounded-2xl flex flex-col items-center justify-center text-center bg-gray-50/20">
-                <CheckSquare className="h-8 w-8 text-gray-300 dark:text-gray-600 mb-1" />
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Không có cấu trúc Task được khai báo.</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Vui lòng nhấp nút nập ở góc trên để theo dõi chi tiết % hoặc điền bản tự tóm tắt dưới đây.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-705 dark:text-gray-200">
-                  Mô tả viết tay Kết quả ngày hôm qua <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="txt-today-work"
-                  value={isRestDay ? `Ngày nghỉ: ${restReasonType === 'Khác' ? customRestReason || 'Lý do khác' : restReasonType}` : todayWork}
-                  disabled={isRestDay || isFormLocked}
-                  onChange={(e) => setTodayWork(e.target.value)}
-                  rows={4}
-                  placeholder="Mô tả chi tiết các tác vụ bạn đã hoàn thành hôm qua..."
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-950 placeholder-gray-400 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none transition-all disabled:opacity-60"
-                />
-                {!isRestDay && (
-                  <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 px-1">
-                    <span>Nên viết chi tiết rõ ràng</span>
-                    <span>{todayWork.length} / 5000 ký tự</span>
-                  </div>
-                )}
-              </div>
+            <div className="p-5 border-2 border-dashed border-gray-200 dark:border-gray-700/60 rounded-2xl flex flex-col items-center justify-center text-center bg-gray-50/20">
+              <CheckSquare className="h-8 w-8 text-sky-400 animate-pulse mb-15" />
+              <p className="text-xs font-bold text-slate-800 dark:text-gray-200">Chưa khai báo Chức năng / Task ngày hôm qua</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 max-w-md leading-relaxed">
+                Hệ thống đã kích hoạt 100% chế độ quản lý Task. Vui lòng bấm &ldquo;Thêm Task đã làm&rdquo; để bắt đầu cập nhật tỷ lệ thực hiện của mình.
+              </p>
+              {!isFormLocked && (
+                <button
+                  type="button"
+                  onClick={handleAddTask}
+                  className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Khai báo Task ngay</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -798,7 +779,7 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
             </div>
           </div>
 
-          {/* Quick Guidance Alert for Today's Planner, satisfying "ví dụ: báo cáo hôm qua là x%, kế hoạch hôm nay là y%..." */}
+          {/* Quick Guidance Alert for Today's Planner */}
           {!isRestDay && (
             <div className="p-3.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-xl text-xs flex gap-2 items-start shrink-0">
               <span className="text-base leading-none">🧠</span>
@@ -812,33 +793,22 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
           )}
 
           {planTasks.length === 0 ? (
-            <div className="space-y-4">
-              <div className="p-5 border-2 border-dashed border-gray-200 dark:border-gray-700/60 rounded-2xl flex flex-col items-center justify-center text-center bg-gray-50/20">
-                <CheckSquare className="h-8 w-8 text-gray-300 dark:text-gray-600 mb-1" />
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Không có cấu trúc mục tiêu được chuẩn bị.</p>
-                <p className="text-[10px] text-gray-405 mt-0.5">Vui lòng nhấp &ldquo;Thêm Mục tiêu Task hôm nay&rdquo; ở trên, hoặc tự viết nội dung bên dưới.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-705 dark:text-gray-200">
-                  Mô tả viết tay Kế hoạch hôm nay <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="txt-tomorrow-plan"
-                  value={isRestDay ? 'Trở lại lịch làm việc / Lịch nộp báo cáo Capstone vào hôm đi học lại' : tomorrowPlan}
-                  disabled={isRestDay || isFormLocked}
-                  onChange={(e) => setTomorrowPlan(e.target.value)}
-                  rows={3}
-                  placeholder="Mô tả các mục tiêu bạn dự định sẽ làm gì hôm nay..."
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-950 placeholder-gray-400 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none transition-all disabled:opacity-60"
-                />
-                {!isRestDay && (
-                  <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 px-1">
-                    <span>Nên ghi cụ thể công việc chính</span>
-                    <span>{tomorrowPlan.length} / 5000 ký tự</span>
-                  </div>
-                )}
-              </div>
+            <div className="p-5 border-2 border-dashed border-gray-200 dark:border-gray-700/60 rounded-2xl flex flex-col items-center justify-center text-center bg-gray-50/20">
+              <CheckSquare className="h-8 w-8 text-emerald-400 animate-pulse mb-1" />
+              <p className="text-xs font-bold text-slate-800 dark:text-gray-200">Chưa khai báo Kế hoạch / Task mục tiêu hôm nay</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 max-w-md leading-relaxed">
+                Bạn cần báo cáo cụ thể mục tiêu tiến độ theo Task. Hãy thêm Task kế hoạch hoặc đồng bộ nhanh từ danh sách hôm qua.
+              </p>
+              {!isFormLocked && (
+                <button
+                  type="button"
+                  onClick={handleAddPlanTask}
+                  className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Khai báo mục tiêu</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
