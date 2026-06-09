@@ -19,6 +19,7 @@ import AdminTeams from './components/AdminTeams';
 import AdminUsers from './components/AdminUsers';
 import AdminReports from './components/AdminReports';
 import AdminMemberStats from './components/AdminMemberStats';
+import ConfirmationDialog from './components/ConfirmationDialog';
 
 import { 
   CheckSquare, 
@@ -46,6 +47,7 @@ export default function App() {
     smtpPass,
     smtpHost,
     smtpPort,
+    emailNotificationsEnabled,
     notifications,
     gmailConnected,
     authErrorMessage,
@@ -57,15 +59,20 @@ export default function App() {
     handleSaveReport,
     handleSaveSystemConfig,
     handleSaveEmailConfig,
+    handleToggleEmailNotifications,
     handleReviewDecision,
     handleCreateTeam,
     handleUpdateTeam,
     handleDeleteTeam,
     handleSaveUserByAdmin,
+    handleDeleteUserByAdmin,
+    handleDeleteBulkInactive,
     handleAddWhitelist,
     handleDeleteWhitelist,
     isWithinTimeRange,
-    hydratedReports
+    hydratedReports,
+    confirmDialog,
+    setConfirmDialog
   } = useAppState();
 
   // Loading Screen
@@ -296,6 +303,8 @@ export default function App() {
               smtpHost={smtpHost}
               smtpPort={smtpPort}
               onSaveEmailConfig={handleSaveEmailConfig}
+              emailNotificationsEnabled={emailNotificationsEnabled}
+              onToggleEmailNotifications={handleToggleEmailNotifications}
             />
           )}
 
@@ -317,7 +326,10 @@ export default function App() {
               teamNameMap={teamNameMap}
               adminUserEditMessage={adminUserEditMessage}
               whitelist={whitelist}
+              reports={hydratedReports}
               onSaveUserByAdmin={handleSaveUserByAdmin}
+              onDeleteUserByAdmin={handleDeleteUserByAdmin}
+              onDeleteBulkInactive={handleDeleteBulkInactive}
               onAddWhitelist={handleAddWhitelist}
               onDeleteWhitelist={handleDeleteWhitelist}
             />
@@ -333,6 +345,18 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Modern custom Confirmation Dialog which works inside sandboxed iframes */}
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        cancelLabel={confirmDialog.cancelLabel}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm || (() => {})}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

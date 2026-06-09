@@ -21,6 +21,8 @@ interface AdminTeamsProps {
   smtpHost: string;
   smtpPort: number;
   onSaveEmailConfig: (user: string, pass: string, host: string, port: number) => Promise<void>;
+  emailNotificationsEnabled: boolean;
+  onToggleEmailNotifications: (enabled: boolean) => Promise<void>;
 }
 
 export default function AdminTeams({
@@ -37,6 +39,8 @@ export default function AdminTeams({
   smtpHost,
   smtpPort,
   onSaveEmailConfig,
+  emailNotificationsEnabled,
+  onToggleEmailNotifications,
 }: AdminTeamsProps) {
   // Config States
   const [sysStartTime, setSysStartTime] = useState<string>(initialStartTime);
@@ -93,16 +97,29 @@ export default function AdminTeams({
         })
       });
 
-      if (res.ok) {
-        setTestResult({
-          success: true,
-          message: 'Gửi thử Email thành công! Hãy kiểm tra Hòm thư đến hoặc Hòm thư rác của ' + emailUser.trim()
-        });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.success) {
+          setTestResult({
+            success: true,
+            message: 'Gửi thử Email thành công! Hãy kiểm tra Hòm thư đến hoặc Hòm thư rác của ' + emailUser.trim()
+          });
+        } else {
+          setTestResult({
+            success: false,
+            message: data.error || 'Lỗi gửi email không xác định từ máy chủ.'
+          });
+        }
       } else {
-        const errorData = await res.json();
+        let fallbackText = '';
+        try {
+          fallbackText = await res.text();
+        } catch (_) {}
+        const cleanText = fallbackText ? fallbackText.slice(0, 150) : 'Phản hồi rỗng';
         setTestResult({
           success: false,
-          message: errorData.error || 'Lỗi gửi email không xác định.'
+          message: `Gửi thử email không thành công (Status: ${res.status}). Chi tiết phản hồi: ${cleanText}`
         });
       }
     } catch (err: any) {
@@ -336,6 +353,29 @@ export default function AdminTeams({
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
                 Sử dụng tài khoản Email SMTP riêng (như Gmail App Password) để gửi các thư thông báo phê duyệt báo cáo tiến độ thay cho tài khoản cá nhân.
               </p>
+            </div>
+
+            {/* Toggle chế độ gửi thư thông báo */}
+            <div className="p-4 bg-sky-50/40 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 rounded-2xl flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="font-bold text-xs text-sky-900 dark:text-sky-300 block">Bật/tắt gửi thư thông báo</span>
+                <p className="text-[11px] text-sky-700/80 dark:text-sky-400 leading-relaxed">
+                  {emailNotificationsEnabled 
+                    ? "Hệ thống BẬT tự động gửi email thông báo kết quả đánh giá cho sinh viên." 
+                    : "Hệ thống TẮT tự động gửi email thông báo kết quả đánh giá."}
+                </p>
+              </div>
+
+              {/* IOS Styled Toggle Switch */}
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={emailNotificationsEnabled}
+                  onChange={(e) => onToggleEmailNotifications(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-sky-600"></div>
+              </label>
             </div>
 
             {/* Crucial SMTP Guidance Alert */}

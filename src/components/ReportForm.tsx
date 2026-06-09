@@ -97,10 +97,14 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
         })));
         
         // Also pre-fill today's plans with those same tasks (carrying over the names & starting next targets)
-        setPlanTasks(latestPastReport.planTasks.map(pt => ({
-          name: pt.name,
-          targetProgress: Math.min(100, pt.targetProgress + 10) // Small push or let them adjust
-        })));
+        // BUT ignore/exclude any tasks that were completed 100% since yesterday/in the past
+        setPlanTasks(latestPastReport.planTasks
+          .filter(pt => pt.targetProgress < 100)
+          .map(pt => ({
+            name: pt.name,
+            targetProgress: Math.min(100, pt.targetProgress + 10) // Small push or let them adjust
+          }))
+        );
       } else if (latestPastReport && latestPastReport.tasks && latestPastReport.tasks.length > 0) {
         setTasks(latestPastReport.tasks.map(t => ({
           name: t.name,
@@ -214,29 +218,48 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
 
     // If the name is changed, keep Today's Plan task name in sync at the matching place
     if (field === 'name') {
+      const taskProgress = nextTasks[index]?.progress || 0;
       const nextPlanTasks = [...planTasks];
-      const matchIndex = nextPlanTasks.findIndex(pt => pt.name.trim().toLowerCase() === prevName.trim().toLowerCase());
-      if (matchIndex !== -1) {
-        nextPlanTasks[matchIndex].name = value;
-        setPlanTasks(nextPlanTasks);
-      } else if (index < nextPlanTasks.length && (!nextPlanTasks[index].name || nextPlanTasks[index].name === prevName)) {
-        nextPlanTasks[index].name = value;
-        setPlanTasks(nextPlanTasks);
-      }
-    } else if (field === 'progress') {
-      // If we update yesterday's task progress, automatically nudge today's targeted plan progress to be >= yesterday progress + 10 (clamped to 100)
-      const nextPlanTasks = [...planTasks];
-      const taskName = nextTasks[index]?.name || '';
-      const matchIndex = nextPlanTasks.findIndex(pt => pt.name.trim().toLowerCase() === taskName.trim().toLowerCase());
-      if (matchIndex !== -1) {
-        if (nextPlanTasks[matchIndex].targetProgress <= value) {
-          nextPlanTasks[matchIndex].targetProgress = Math.min(100, value + 10);
+      
+      if (taskProgress >= 100) {
+        // If the task completed 100% yesterday, it shouldn't exist/be added in today's plans
+        const filteredPlanTasks = nextPlanTasks.filter(pt => 
+          pt.name.trim().toLowerCase() !== prevName.trim().toLowerCase() && 
+          pt.name.trim().toLowerCase() !== value.trim().toLowerCase()
+        );
+        setPlanTasks(filteredPlanTasks);
+      } else {
+        const matchIndex = nextPlanTasks.findIndex(pt => pt.name.trim().toLowerCase() === prevName.trim().toLowerCase());
+        if (matchIndex !== -1) {
+          nextPlanTasks[matchIndex].name = value;
+          setPlanTasks(nextPlanTasks);
+        } else if (index < nextPlanTasks.length && (!nextPlanTasks[index].name || nextPlanTasks[index].name === prevName)) {
+          nextPlanTasks[index].name = value;
           setPlanTasks(nextPlanTasks);
         }
-      } else if (index < nextPlanTasks.length) {
-        if (nextPlanTasks[index].targetProgress <= value) {
-          nextPlanTasks[index].targetProgress = Math.min(100, value + 10);
-          setPlanTasks(nextPlanTasks);
+      }
+    } else if (field === 'progress') {
+      const nextPlanTasks = [...planTasks];
+      const taskName = nextTasks[index]?.name || '';
+      
+      if (value >= 100) {
+        // Automatically remove from today's plans if completed 100% yesterday
+        const filteredPlanTasks = nextPlanTasks.filter(
+          pt => pt.name.trim().toLowerCase() !== taskName.trim().toLowerCase()
+        );
+        setPlanTasks(filteredPlanTasks);
+      } else {
+        const matchIndex = nextPlanTasks.findIndex(pt => pt.name.trim().toLowerCase() === taskName.trim().toLowerCase());
+        if (matchIndex !== -1) {
+          if (nextPlanTasks[matchIndex].targetProgress <= value) {
+            nextPlanTasks[matchIndex].targetProgress = Math.min(100, value + 10);
+            setPlanTasks(nextPlanTasks);
+          }
+        } else if (index < nextPlanTasks.length) {
+          if (nextPlanTasks[index].targetProgress <= value) {
+            nextPlanTasks[index].targetProgress = Math.min(100, value + 10);
+            setPlanTasks(nextPlanTasks);
+          }
         }
       }
     }
@@ -280,6 +303,9 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
     
     tasks.forEach((t) => {
       if (!t.name.trim()) return;
+      // Tránh đồng bộ những nhiệm vụ đã hoàn thành 100% từ hôm qua
+      if (t.progress >= 100) return;
+      
       const exists = updatedPlanTasks.some(pt => pt.name.trim().toLowerCase() === t.name.trim().toLowerCase());
       if (!exists) {
         updatedPlanTasks.push({
@@ -367,6 +393,13 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
         );
         if (matchingYesterday && pt.targetProgress < matchingYesterday.progress) {
           setFormError(`Mục tiêu tiến độ hôm nay của task "${pt.name}" (${pt.targetProgress}%) không thể nhỏ hơn tiến độ thực tế đã đạt hôm qua (${matchingYesterday.progress}%).`);
+          return;
+        }
+
+        // Bắt buộc thay đổi nhiệm vụ nếu nhiệm vụ đó đã hoàn thành 100% từ hôm qua
+        const planCheck = checkTaskStatus(pt.name);
+        if (planCheck.completedDate !== null || (matchingYesterday && matchingYesterday.progress === 100)) {
+          setFormError(`Nhiệm vụ "${pt.name}" đã hoàn thành 100% từ hôm qua/lần trước. Hôm nay bạn bắt buộc phải làm nhiệm vụ khác.`);
           return;
         }
       }
@@ -874,23 +907,32 @@ export default function ReportForm({ userProfile, existingReports, startTime, en
                       </div>
 
                       {/* Dynamic helpful badge / instructions matching user requests in real time */}
-                      {pt.name.trim() && (
-                        <div className="pt-2 text-[10px] border-t border-gray-50 dark:border-gray-850 flex items-center gap-2 flex-wrap font-medium">
-                          {matchingYesterdayTask ? (
-                            <span className="px-2 py-0.5 bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 text-sky-800 dark:text-sky-300 rounded-md">
-                              📊 Hôm qua thực đạt: <strong className="font-bold">{matchingYesterdayTask.progress}%</strong> 
-                              &rarr; Mục tiêu hôm nay: <strong className="font-bold">{pt.targetProgress}%</strong>
-                              {pt.targetProgress <= matchingYesterdayTask.progress && (
-                                <span className="text-rose-500 ml-1 font-bold">(Vui lòng đặt mục tiêu lớn hơn hoặc bằng tiến độ hôm qua)</span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/25 border border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400 rounded-md">
-                              ✨ Task mới đăng ký kế hoạch hôm nay
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      {pt.name.trim() && (() => {
+                        const planCheck = checkTaskStatus(pt.name);
+                        const isAlreadyCompleted = planCheck.completedDate !== null || (matchingYesterdayTask !== undefined && matchingYesterdayTask.progress === 100);
+                        
+                        return (
+                          <div className="pt-2 text-[10px] border-t border-gray-50 dark:border-gray-850 flex items-center gap-2 flex-wrap font-medium">
+                            {isAlreadyCompleted ? (
+                              <span className="px-2 py-1 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-450 rounded-md flex items-center gap-1 font-bold animate-pulse">
+                                ⚠️ Nhiệm vụ này đã hoàn thành 100% từ hôm qua. Hôm nay bắt buộc phải làm nhiệm vụ khác!
+                              </span>
+                            ) : matchingYesterdayTask ? (
+                              <span className="px-2 py-0.5 bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 text-sky-800 dark:text-sky-305 rounded-md">
+                                📊 Hôm qua thực đạt: <strong className="font-bold">{matchingYesterdayTask.progress}%</strong> 
+                                &rarr; Mục tiêu hôm nay: <strong className="font-bold">{pt.targetProgress}%</strong>
+                                {pt.targetProgress <= matchingYesterdayTask.progress && (
+                                  <span className="text-rose-500 ml-1 font-bold">(Vui lòng đặt mục tiêu lớn hơn hoặc bằng tiến độ hôm qua)</span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/25 border border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400 rounded-md">
+                                ✨ Task mới đăng ký kế hoạch hôm nay
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

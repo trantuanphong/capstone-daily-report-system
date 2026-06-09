@@ -59,6 +59,7 @@ export function useAppState() {
   const [smtpPass, setSmtpPass] = useState<string>('');
   const [smtpHost, setSmtpHost] = useState<string>('smtp.gmail.com');
   const [smtpPort, setSmtpPort] = useState<number>(465);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(true);
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [gmailConnected, setGmailConnected] = useState<boolean>(false);
@@ -67,6 +68,38 @@ export function useAppState() {
   // Whitelist & Admin Feedback States
   const [whitelist, setWhitelist] = useState<any[]>([]);
   const [adminUserEditMessage, setAdminUserEditMessage] = useState<string | null>(null);
+
+  // Custom visual confirm dialog state (replaces window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    type?: 'danger' | 'warning' | 'info';
+    onConfirm?: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void | Promise<void>,
+    options?: { confirmLabel?: string; cancelLabel?: string; type?: 'danger' | 'warning' | 'info' }
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      confirmLabel: options?.confirmLabel || 'Xác nhận',
+      cancelLabel: options?.cancelLabel || 'Hủy bỏ',
+      type: options?.type || 'danger',
+    });
+  };
 
   // Check if Config is placeholder
   useEffect(() => {
@@ -243,6 +276,11 @@ export function useAppState() {
         if (data.pass) setSmtpPass(data.pass);
         if (data.host) setSmtpHost(data.host);
         if (data.port) setSmtpPort(data.port);
+        if (data.hasOwnProperty('enabled')) {
+          setEmailNotificationsEnabled(data.enabled);
+        } else {
+          setEmailNotificationsEnabled(true);
+        }
       }
     }, (error) => {
       console.warn("Failed to listen to email configuration:", error);
@@ -492,63 +530,80 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
         let gmailSentResult = false;
         let errorMessage = '';
 
-        const oauthToken = getCachedAccessToken();
-        if (oauthToken) {
-          try {
-            console.log("Attempting to send notification email via Google Gmail API...");
-            await sendGmailNotification(oauthToken, studentEmail, mailSubject, mailBody);
-            gmailSentResult = true;
-          } catch (gmailErr: any) {
-            console.warn("Gmail API direct sending failed, falling back to SMTP...", gmailErr);
-            errorMessage = gmailErr.message || String(gmailErr);
+        // Retrieve SMTP config securely from email_config collection to check if email is enabled
+        let smtpConfigToUse: any = null;
+        try {
+          const smtpSnap = await getDoc(doc(db, 'email_config', 'smtp'));
+          if (smtpSnap.exists()) {
+            smtpConfigToUse = smtpSnap.data();
           }
+        } catch (smtpErr) {
+          console.error("Failed to read secure SMTP configuration from firestore:", smtpErr);
         }
 
-        if (!gmailSentResult) {
-          // Retrieve SMTP config securely from email_config collection
-          let smtpConfigToUse: any = null;
-          try {
-            const smtpSnap = await getDoc(doc(db, 'email_config', 'smtp'));
-            if (smtpSnap.exists()) {
-              smtpConfigToUse = smtpSnap.data();
-            }
-          } catch (smtpErr) {
-            console.error("Failed to read secure SMTP configuration from firestore:", smtpErr);
-          }
+        const isEmailEnabled = smtpConfigToUse === null || smtpConfigToUse.enabled !== false;
 
-          if (smtpConfigToUse && smtpConfigToUse.user && smtpConfigToUse.pass) {
+        if (isEmailEnabled) {
+          const oauthToken = getCachedAccessToken();
+          if (oauthToken) {
             try {
-              const apiRes = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  smtpUser: smtpConfigToUse.user,
-                  smtpPass: smtpConfigToUse.pass,
-                  smtpHost: smtpConfigToUse.host || 'smtp.gmail.com',
-                  smtpPort: smtpConfigToUse.port || 465,
-                  to: studentEmail,
-                  subject: mailSubject,
-                  body: mailBody
-                })
-              });
-
-              if (apiRes.ok) {
-                gmailSentResult = true;
-                errorMessage = ''; // Clear previous error
-              } else {
-                const errData = await apiRes.json();
-                errorMessage = errData.error || 'Lỗi không xác định khi gọi API gửi email.';
-              }
-            } catch (apiErr: any) {
-              errorMessage = apiErr.message || String(apiErr);
+              console.log("Attempting to send notification email via Google Gmail API...");
+              await sendGmailNotification(oauthToken, studentEmail, mailSubject, mailBody);
+              gmailSentResult = true;
+            } catch (gmailErr: any) {
+              console.warn("Gmail API direct sending failed, falling back to SMTP...", gmailErr);
+              errorMessage = gmailErr.message || String(gmailErr);
             }
-          } else {
-            errorMessage = errorMessage 
-              ? `Lỗi gửi trực tiếp bằng tài khoản Google Gmail (${errorMessage}) và chưa cấu hình tài khoản Email SMTP dự phòng.`
-              : 'Chưa cấu hình tài khoản Email gửi thư chuyên dùng (SMTP App Password) trong phần quản trị / Cấu hình email.';
           }
+
+          if (!gmailSentResult) {
+            if (smtpConfigToUse && smtpConfigToUse.user && smtpConfigToUse.pass) {
+              try {
+                const apiRes = await fetch('/api/send-email', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    smtpUser: smtpConfigToUse.user,
+                    smtpPass: smtpConfigToUse.pass,
+                    smtpHost: smtpConfigToUse.host || 'smtp.gmail.com',
+                    smtpPort: smtpConfigToUse.port || 465,
+                    to: studentEmail,
+                    subject: mailSubject,
+                    body: mailBody
+                  })
+                });
+
+                const contentType = apiRes.headers.get('content-type') || '';
+                if (apiRes.ok && contentType.includes('application/json')) {
+                  const data = await apiRes.json();
+                  if (data.success) {
+                    gmailSentResult = true;
+                    errorMessage = ''; // Clear previous error
+                  } else {
+                    errorMessage = data.error || 'Lỗi không xác định khi gửi email SMTP.';
+                  }
+                } else {
+                  let fallbackText = '';
+                  try {
+                    fallbackText = await apiRes.text();
+                  } catch (_) {}
+                  const cleanText = fallbackText ? fallbackText.slice(0, 150) : 'Chọn lọc phản hồi rỗng';
+                  errorMessage = `Gửi email qua SMTP không thành công (Status: ${apiRes.status}). Chi tiết phản hồi: ${cleanText}`;
+                }
+              } catch (apiErr: any) {
+                errorMessage = apiErr.message || String(apiErr);
+              }
+            } else {
+              errorMessage = errorMessage 
+                ? `Lỗi gửi trực tiếp bằng tài khoản Google Gmail (${errorMessage}) và chưa cấu hình tài khoản Email SMTP dự phòng.`
+                : 'Chưa cấu hình tài khoản Email gửi thư chuyên dùng (SMTP App Password) trong phần quản trị / Cấu hình email.';
+            }
+          }
+        } else {
+          console.log("Email alerts are disabled by system settings.");
+          errorMessage = 'Chế độ gửi thư thông báo qua Email đang TẮT.';
         }
 
         const notifId = `email_${Date.now()}_${studentUid}`;
@@ -598,6 +653,20 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
     }
   };
 
+  // Toggle email notification status
+  const handleToggleEmailNotifications = async (enabled: boolean) => {
+    try {
+      const docRef = doc(db, 'email_config', 'smtp');
+      await setDoc(docRef, {
+        enabled,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err: any) {
+      console.error(err);
+      alert('Lỗi thay đổi trạng thái gửi thư thông báo: ' + err.message);
+    }
+  };
+
   // Team Admin Actions
   const handleCreateTeam = async (name: string) => {
     const teamId = 'team-' + name.trim().toLowerCase().replace(/[^a-z0-9]/g, '-');
@@ -616,16 +685,20 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
   };
 
   const handleDeleteTeam = async (teamId: string, teamName: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhóm "${teamName}"? Hành động này sẽ xóa vĩnh viễn nhóm.`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'teams', teamId));
-      alert(`Đã xóa nhóm "${teamName}" thành công khỏi hệ thống!`);
-    } catch (err: any) {
-      console.error(err);
-      alert(`Có lỗi xảy ra khi xóa nhóm: ${err.message}`);
-    }
+    showConfirm(
+      'Xóa nhóm báo cáo đồ án',
+      `Bạn có chắc chắn muốn xóa nhóm "${teamName}"? Hành động này sẽ xóa vĩnh viễn nhóm khỏi hệ thống và không thể khôi phục.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'teams', teamId));
+          alert(`Đã xóa nhóm "${teamName}" thành công khỏi hệ thống!`);
+        } catch (err: any) {
+          console.error(err);
+          alert(`Có lỗi xảy ra khi xóa nhóm: ${err.message}`);
+        }
+      },
+      { confirmLabel: 'Xóa vĩnh viễn', type: 'danger' }
+    );
   };
 
   // User Admin Actions
@@ -644,6 +717,59 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
       console.error(err);
       setAdminUserEditMessage(`Lỗi: ${err.message || 'Kiểm tra Firestore console.'}`);
     }
+  };
+
+  const handleDeleteUserByAdmin = async (userId: string, userEmail: string) => {
+    showConfirm(
+      'Xóa tài khoản sinh viên',
+      `Bạn có chắc chắn muốn xóa tài khoản sinh viên/thành viên "${userEmail}"?\n\nHành động này sẽ xóa dữ liệu thông tin tài khoản của họ khỏi danh sách của hệ thống.`,
+      async () => {
+        setAdminUserEditMessage(null);
+        try {
+          await deleteDoc(doc(db, 'users', userId));
+          setAdminUserEditMessage(`Đã xóa tài khoản "${userEmail}" thành công.`);
+          setTimeout(() => setAdminUserEditMessage(null), 3500);
+        } catch (err: any) {
+          console.error(err);
+          setAdminUserEditMessage(`Lỗi khi xóa tài khoản: ${err.message}`);
+        }
+      },
+      { confirmLabel: 'Xóa vĩnh viễn', type: 'danger' }
+    );
+  };
+
+  const handleDeleteBulkInactive = async (uidsToDelete: string[], emailsToDelete: string[]) => {
+    if (uidsToDelete.length === 0 && emailsToDelete.length === 0) {
+      alert("Không tìm thấy tài khoản nào không hoạt động để xóa.");
+      return;
+    }
+    
+    showConfirm(
+      'Dọn dẹp tài khoản không hoạt động',
+      `Bạn có chắc chắn muốn dọn dẹp ${uidsToDelete.length + emailsToDelete.length} tài khoản không hoạt động?\n\n` +
+      `- Có ${emailsToDelete.length} email whitelist chưa hoạt động (chưa từng đăng ký).\n` +
+      `- Có ${uidsToDelete.length} sinh viên đã đăng ký nhưng có 0 bài báo cáo nộp lên.\n\n` +
+      `Lưu ý: Hành động này không thể hoàn tác!`,
+      async () => {
+        setAdminUserEditMessage("Đang tiến hành dọn dẹp các tài khoản không hoạt động...");
+        try {
+          // 1. Delete whitelist items (Invitation Pending)
+          for (const email of emailsToDelete) {
+            await deleteDoc(doc(db, 'whitelist', email.toLowerCase()));
+          }
+          // 2. Delete user profiles (Registered but 0 reports)
+          for (const uid of uidsToDelete) {
+            await deleteDoc(doc(db, 'users', uid));
+          }
+          setAdminUserEditMessage(`Đã dọn dẹp thành công ${uidsToDelete.length + emailsToDelete.length} tài khoản không hoạt động.`);
+          setTimeout(() => setAdminUserEditMessage(null), 4000);
+        } catch (err: any) {
+          console.error(err);
+          setAdminUserEditMessage(`Lỗi trong quá trình dọn dẹp: ${err.message}`);
+        }
+      },
+      { confirmLabel: 'Xác nhận dọn dẹp', type: 'danger' }
+    );
   };
 
   const handleAddWhitelist = async (email: string, name: string, role: 'student' | 'reviewer' | 'admin', teamId: string) => {
@@ -675,17 +801,21 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
   };
 
   const handleDeleteWhitelist = async (emailKey: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn hủy ủy quyền và xóa "${emailKey}" khỏi danh sách Whitelist?`)) {
-      return;
-    }
-    try {
-      await deleteDoc(doc(db, 'whitelist', emailKey.toLowerCase()));
-      setAdminUserEditMessage(`đã xóa "${emailKey}" khỏi Whitelist.`);
-      setTimeout(() => setAdminUserEditMessage(null), 4000);
-    } catch (err: any) {
-      console.error(err);
-      setAdminUserEditMessage(`Lỗi xóa whitelist: ${err.message}`);
-    }
+    showConfirm(
+      'Hủy ủy quyền Whitelist',
+      `Bạn có chắc chắn muốn hủy ủy quyền và xóa "${emailKey}" khỏi danh sách Whitelist?`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'whitelist', emailKey.toLowerCase()));
+          setAdminUserEditMessage(`đã xóa "${emailKey}" khỏi Whitelist.`);
+          setTimeout(() => setAdminUserEditMessage(null), 4000);
+        } catch (err: any) {
+          console.error(err);
+          setAdminUserEditMessage(`Lỗi xóa whitelist: ${err.message}`);
+        }
+      },
+      { confirmLabel: 'Xóa khỏi Whitelist', type: 'danger' }
+    );
   };
 
   const getIsWithinTimeRange = () => {
@@ -728,6 +858,7 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
     smtpPass,
     smtpHost,
     smtpPort,
+    emailNotificationsEnabled,
     notifications,
     gmailConnected,
     authErrorMessage,
@@ -739,14 +870,19 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
     handleSaveReport,
     handleSaveSystemConfig,
     handleSaveEmailConfig,
+    handleToggleEmailNotifications,
     handleReviewDecision,
     handleCreateTeam,
     handleUpdateTeam,
     handleDeleteTeam,
     handleSaveUserByAdmin,
+    handleDeleteUserByAdmin,
+    handleDeleteBulkInactive,
     handleAddWhitelist,
     handleDeleteWhitelist,
     isWithinTimeRange,
-    hydratedReports
+    hydratedReports,
+    confirmDialog,
+    setConfirmDialog
   };
 }

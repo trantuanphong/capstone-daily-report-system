@@ -4,8 +4,8 @@
  */
 
 import { useState, FormEvent } from 'react';
-import { UserCheck, UserPlus, AlertTriangle, Trash2 } from 'lucide-react';
-import { UserProfile, Team } from '../types';
+import { UserCheck, UserPlus, AlertTriangle, Trash2, ShieldAlert, Filter, Trash } from 'lucide-react';
+import { UserProfile, Team, Report } from '../types';
 
 interface AdminUsersProps {
   allUsers: UserProfile[];
@@ -13,7 +13,10 @@ interface AdminUsersProps {
   teamNameMap: Record<string, string>;
   adminUserEditMessage: string | null;
   whitelist: any[];
+  reports?: Report[];
   onSaveUserByAdmin: (userId: string, assignedTeamId: string, role: 'student' | 'reviewer' | 'admin') => Promise<void>;
+  onDeleteUserByAdmin: (userId: string, userEmail: string) => Promise<void>;
+  onDeleteBulkInactive?: (uidsToClean: string[], emailsToClean: string[]) => Promise<void>;
   onAddWhitelist: (email: string, name: string, role: 'student' | 'reviewer' | 'admin', teamId: string) => Promise<void>;
   onDeleteWhitelist: (emailKey: string) => Promise<void>;
 }
@@ -24,10 +27,41 @@ export default function AdminUsers({
   teamNameMap,
   adminUserEditMessage,
   whitelist,
+  reports = [],
   onSaveUserByAdmin,
+  onDeleteUserByAdmin,
+  onDeleteBulkInactive,
   onAddWhitelist,
   onDeleteWhitelist,
 }: AdminUsersProps) {
+  // Filter & Toggle view state
+  const [showInactiveOnly, setShowInactiveOnly] = useState<boolean>(false);
+
+  // Find which whitelist emails are not registered (Invitation Pending)
+  const pendingWhitelistItems = whitelist.filter((item) => {
+    return !allUsers.some((u) => u.email.toLowerCase() === item.email.toLowerCase());
+  });
+
+  // Find registered student users with 0 reports (Inactive student)
+  const inactiveStudentUsers = allUsers.filter((u) => {
+    if (u.role !== 'student') return false;
+    const userReportsCount = reports.filter((r) => r.userId === u.uid).length;
+    return userReportsCount === 0;
+  });
+
+  const totalInactiveCount = pendingWhitelistItems.length + inactiveStudentUsers.length;
+
+  // Filter lists based on toggle state
+  const displayedWhitelist = showInactiveOnly ? pendingWhitelistItems : whitelist;
+  const displayedAllUsers = showInactiveOnly ? inactiveStudentUsers : allUsers;
+
+  const handleBulkCleanupClick = async () => {
+    if (!onDeleteBulkInactive) return;
+    const uidsToClean = inactiveStudentUsers.map(u => u.uid);
+    const emailsToClean = pendingWhitelistItems.map(item => item.email);
+    await onDeleteBulkInactive(uidsToClean, emailsToClean);
+  };
+
   // Whitelist Form States
   const [wlEmail, setWlEmail] = useState<string>('');
   const [wlName, setWlName] = useState<string>('');
@@ -71,6 +105,48 @@ export default function AdminUsers({
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Pre-authorize specific student and reviewer Gmail accounts. Unregistered users are blocked safely from logging in or reading any database records.
           </p>
+        </div>
+      </div>
+
+      {/* Dynamic Inactive Sweeper Panel */}
+      <div className="p-5 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse font-bold"></span>
+            <h4 className="font-bold text-sm text-slate-800 dark:text-white">Bộ lọc dọn dẹp tài khoản không hoạt động</h4>
+          </div>
+          <p className="text-[11px] text-gray-500 dark:text-gray-450 leading-relaxed">
+            Hệ thống phát hiện được <strong className="text-amber-600 font-bold">{pendingWhitelistItems.length}</strong> tài khoản Whitelist chờ đăng ký &amp; <strong className="text-amber-600 font-bold">{inactiveStudentUsers.length}</strong> sinh viên chưa nộp báo cáo.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+          {/* Toggle for Filtering */}
+          <button
+            id="btn-toggle-inactive-filter"
+            onClick={() => setShowInactiveOnly(!showInactiveOnly)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none outline-none ${
+              showInactiveOnly
+                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900"
+                : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-850 text-slate-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            <span>{showInactiveOnly ? "Hiện tất cả" : "Chỉ hiện tài khoản chưa hoạt động"}</span>
+          </button>
+
+          {/* Bulk deletion trigger */}
+          {totalInactiveCount > 0 && (
+            <button
+              id="btn-bulk-clean-inactive"
+              onClick={handleBulkCleanupClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer select-none outline-none shrink-0"
+              title="Xóa hàng loạt các tài khoản chưa hoạt động/không hoạt động"
+            >
+              <Trash className="h-3.5 w-3.5" />
+              <span>Dọn dẹp nhanh ({totalInactiveCount})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -172,9 +248,9 @@ export default function AdminUsers({
         <div className="xl:col-span-2 space-y-6">
           {/* WHITELIST ROSTER TABLE */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/55 dark:bg-gray-950/25">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/55 dark:bg-gray-955/25">
               <div>
-                <h4 className="font-bold text-sm dark:text-white">Active Whitelisted Accounts ({whitelist.length})</h4>
+                <h4 className="font-bold text-sm dark:text-white">Active Whitelisted Accounts ({displayedWhitelist.length})</h4>
                 <p className="text-[10px] text-gray-400 mt-0.5">Pre-authorized emails permitted to bypass login restricted bounds</p>
               </div>
             </div>
@@ -190,7 +266,7 @@ export default function AdminUsers({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {whitelist.map((item) => {
+                  {displayedWhitelist.map((item) => {
                     const isUserActive = allUsers.some((u) => u.email.toLowerCase() === item.email.toLowerCase());
                     return (
                       <tr key={item.email} className="hover:bg-gray-50/50 dark:hover:bg-gray-900/10 transition-colors">
@@ -235,10 +311,12 @@ export default function AdminUsers({
                     );
                   })}
 
-                  {whitelist.length === 0 && (
+                  {displayedWhitelist.length === 0 && (
                     <tr>
                       <td colSpan={4} className="p-8 text-center text-gray-400 dark:text-gray-500 italic">
-                        No pre-authorized Student/Reviewer accounts present on the secure whitelist.
+                        {showInactiveOnly 
+                          ? "Không có tài khoản whitelist chưa kích hoạt nào tự đăng ký."
+                          : "No pre-authorized Student/Reviewer accounts present on the secure whitelist."}
                       </td>
                     </tr>
                   )}
@@ -249,8 +327,8 @@ export default function AdminUsers({
 
           {/* ACTIVE REGISTERED SIGNED-IN USER DIRECTORY VIEW */}
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/55 dark:bg-gray-950/25">
-              <h4 className="font-bold text-sm dark:text-white">Active Signed-in Users Roster ({allUsers.length})</h4>
+            <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/55 dark:bg-gray-955/25">
+              <h4 className="font-bold text-sm dark:text-white">Active Signed-in Users Roster ({displayedAllUsers.length})</h4>
               <p className="text-[10px] text-gray-400 mt-0.5">Accounts actively signed-in via Google credentials with current cached session uids</p>
             </div>
 
@@ -261,15 +339,34 @@ export default function AdminUsers({
                     <th className="p-3">Verified Member Name</th>
                     <th className="p-3">Teammate Group Assignment</th>
                     <th className="p-3">Role Level Access</th>
+                    <th className="p-3 flex justify-end pr-5">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {allUsers.map((user) => (
-                    <tr key={user.uid} className="hover:bg-gray-50/40 dark:hover:bg-gray-850 transition-colors animate-fade-in">
-                      <td className="p-3">
-                        <strong className="block text-slate-805 dark:text-white font-bold">{user.name}</strong>
-                        <span className="text-gray-400 text-[10px] block font-mono">{user.email}</span>
-                      </td>
+                  {displayedAllUsers.map((user) => {
+                    const userReportsCount = reports.filter((r) => r.userId === user.uid).length;
+                    return (
+                      <tr key={user.uid} className="hover:bg-gray-50/40 dark:hover:bg-gray-850 transition-colors animate-fade-in">
+                        <td className="p-3">
+                          <strong className="block text-slate-850 dark:text-white font-bold">{user.name}</strong>
+                          <span className="text-gray-400 text-[10px] block font-mono">{user.email}</span>
+                          
+                          {/* Report count activity badges */}
+                          {user.role === 'student' && (
+                            <div className="mt-1">
+                              {userReportsCount === 0 ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 dark:text-rose-450 bg-rose-50 dark:bg-rose-950/25 px-1.5 py-0.5 rounded">
+                                  <ShieldAlert className="h-2.5 w-2.5" />
+                                  Không hoạt động (0 báo cáo)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-450 bg-emerald-50 dark:bg-emerald-950/25 px-1.5 py-0.5 rounded">
+                                  Đang hoạt động ({userReportsCount} báo cáo)
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
                       <td className="p-3">
                         <select
                           id={`sel-user-team-${user.uid}`}
@@ -295,8 +392,33 @@ export default function AdminUsers({
                           <option value="admin">Admin</option>
                         </select>
                       </td>
+                      <td className="p-3 text-right pr-5">
+                        {user.role === 'student' ? (
+                          <button
+                            id={`btn-del-user-${user.uid}`}
+                            onClick={() => onDeleteUserByAdmin(user.uid, user.email)}
+                            className="p-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-700 dark:bg-rose-950/30 dark:hover:bg-rose-950/55 dark:text-rose-452 transition-all cursor-pointer outline-none"
+                            title="Xóa tài khoản sinh viên"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">Non-Student</span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
+
+                  {displayedAllUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-450 dark:text-gray-500 italic font-sans text-xs">
+                        {showInactiveOnly 
+                          ? "Không tìm thấy sinh viên nào không hoạt động (đăng ký nhưng có 0 báo cáo)." 
+                          : "No active users signed into the platform yet."}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

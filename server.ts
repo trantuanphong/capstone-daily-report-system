@@ -14,14 +14,15 @@ async function startServer() {
     const { smtpUser, smtpPass, smtpHost, smtpPort, to, subject, body } = req.body;
 
     if (!smtpUser || !smtpPass || !to || !subject || !body) {
-      return res.status(400).json({ error: "Missing required parameters for email sending" });
+      return res.json({ success: false, error: "Missing required parameters for email sending" });
     }
 
     try {
+      const portNumber = Number(smtpPort) || 465;
       const transporter = nodemailer.createTransport({
         host: smtpHost || "smtp.gmail.com",
-        port: smtpPort || 465,
-        secure: smtpPort === 465 || !smtpPort, // true for 465, false for other ports
+        port: portNumber,
+        secure: portNumber === 465, // true for 465, false for other ports
         auth: {
           user: smtpUser,
           pass: smtpPass,
@@ -39,7 +40,14 @@ async function startServer() {
       res.json({ success: true, messageId: info.messageId });
     } catch (error: any) {
       console.error("SMTP Mail Send Error:", error);
-      res.status(500).json({ error: error.message || "Failed to send email via SMTP" });
+      let errorMessage = error.message || "Failed to send email via SMTP";
+      
+      // Pinpoint exact root cause for Gmail SMTP 535 rejection
+      if (errorMessage.includes("535-5.7.8") || errorMessage.toLowerCase().includes("username and password not accepted")) {
+        errorMessage = "Lỗi xác thực SMTP (Mã lỗi 535-5.7.8): Tài khoản hoặc Mật khẩu không chính xác. ĐẶC BIỆT LƯU Ý: Nếu bạn sử dụng Gmail gửi SMTP, bạn BẮT BUỘC phải bật Xác minh 2 bước trên Gmail đó, sau đó tạo và điền 'Mật khẩu ứng dụng' (App Password - gồm 16 ký tự viết liền) chứ KHÔNG ĐƯỢC sử dụng mật khẩu đăng nhập tài khoản thông thường.";
+      }
+      
+      res.json({ success: false, error: errorMessage });
     }
   });
 
