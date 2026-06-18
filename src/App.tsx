@@ -61,6 +61,7 @@ export default function App() {
     handleSaveEmailConfig,
     handleToggleEmailNotifications,
     handleReviewDecision,
+    handleBulkApprove,
     handleCreateTeam,
     handleUpdateTeam,
     handleDeleteTeam,
@@ -72,7 +73,8 @@ export default function App() {
     isWithinTimeRange,
     hydratedReports,
     confirmDialog,
-    setConfirmDialog
+    setConfirmDialog,
+    showConfirm
   } = useAppState();
 
   // Loading Screen
@@ -250,6 +252,8 @@ export default function App() {
               userProfile={userProfile}
               teamNameString={teamNameString}
               onReview={handleReviewDecision}
+              onBulkApprove={handleBulkApprove}
+              showConfirm={showConfirm}
             />
           )}
 
@@ -341,6 +345,8 @@ export default function App() {
               reports={hydratedReports}
               userProfile={userProfile}
               onReview={handleReviewDecision}
+              onBulkApprove={handleBulkApprove}
+              showConfirm={showConfirm}
             />
           )}
         </main>

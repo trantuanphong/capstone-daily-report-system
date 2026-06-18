@@ -9,7 +9,7 @@ interface AdminMemberStatsProps {
   teamNameMap: Record<string, string>;
 }
 
-type SortField = 'name' | 'team' | 'total' | 'approved' | 'rejected' | 'pending';
+type SortField = 'name' | 'team' | 'total' | 'approved' | 'rejected' | 'pending' | 'latestReport';
 type SortOrder = 'asc' | 'desc';
 
 export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap }: AdminMemberStatsProps) {
@@ -19,6 +19,48 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
   // Sort States
   const [sortField, setSortField] = useState<SortField>('total');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // Date Formatting Helper
+  const formattedDate = (ts: any) => {
+    if (!ts) return 'Chưa nộp';
+    try {
+      if (ts && typeof ts.seconds === 'number') {
+        const dateObj = new Date(ts.seconds * 1000);
+        return dateObj.toLocaleDateString('vi-VN', { 
+          year: 'numeric', 
+          month: 'numeric', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      if (ts instanceof Date) {
+        return ts.toLocaleDateString('vi-VN', { 
+          year: 'numeric', 
+          month: 'numeric', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      if (typeof ts === 'string') {
+        const dateObj = new Date(ts);
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toLocaleDateString('vi-VN', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        }
+        return ts;
+      }
+      return String(ts);
+    } catch (e) {
+      return 'Chưa nộp';
+    }
+  };
 
   // Filter only student members (the report submitters)
   const students = allUsers.filter(u => u.role === 'student');
@@ -32,6 +74,32 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
     const pending = studentReports.filter(r => r.status === 'pending').length;
     const percent = total > 0 ? Math.round((approved / total) * 100) : 0;
 
+    // Find the latest report submission
+    let latestReportTime: any = null;
+    let latestReportTimestamp = 0;
+
+    if (studentReports.length > 0) {
+      studentReports.forEach(r => {
+        let seconds = 0;
+        if (r.createdAt && typeof r.createdAt.seconds === 'number') {
+          seconds = r.createdAt.seconds;
+        } else if (r.createdAt && typeof r.createdAt.toMillis === 'function') {
+          seconds = r.createdAt.toMillis() / 1000;
+        } else if (r.createdAt instanceof Date) {
+          seconds = r.createdAt.getTime() / 1000;
+        } else if (r.createdAt && typeof r.createdAt === 'string') {
+          seconds = new Date(r.createdAt).getTime() / 1000;
+        } else if (r.date) {
+          seconds = new Date(r.date).getTime() / 1000;
+        }
+        
+        if (seconds > latestReportTimestamp) {
+          latestReportTimestamp = seconds;
+          latestReportTime = r.createdAt || r.date;
+        }
+      });
+    }
+
     return {
       uid: student.uid,
       name: student.name,
@@ -42,7 +110,9 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
       approved,
       rejected,
       pending,
-      percent
+      percent,
+      latestReportTime,
+      latestReportTimestamp
     };
   });
 
@@ -58,6 +128,13 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
 
   // Apply sorting
   const sortedStats = [...filteredStats].sort((a, b) => {
+    if (sortField === 'latestReport') {
+      const valA = a.latestReportTimestamp;
+      const valB = b.latestReportTimestamp;
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    }
     let specA: any = a[sortField];
     let specB: any = b[sortField];
 
@@ -179,6 +256,13 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
                   <span>Nhóm / Đồ án</span>
                   <SortIcon field="team" />
                 </th>
+                <th className="p-4 cursor-pointer hover:text-purple-600 dark:hover:text-purple-400" onClick={() => handleSort('latestReport')}>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Báo cáo gần nhất</span>
+                    <SortIcon field="latestReport" />
+                  </span>
+                </th>
                 <th className="p-4 cursor-pointer text-center hover:text-purple-600 dark:hover:text-purple-400" onClick={() => handleSort('total')}>
                   <span className="flex items-center justify-center gap-1">
                     <FileText className="h-3.5 w-3.5" />
@@ -224,6 +308,15 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
                       {stat.teamName}
                     </span>
                   </td>
+                  <td className="p-4 text-slate-600 dark:text-gray-300 font-mono text-[10px]">
+                    {stat.latestReportTime ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-gray-250 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-gray-100 dark:border-gray-800">
+                        {formattedDate(stat.latestReportTime)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500 italic">Chưa nộp báo cáo</span>
+                    )}
+                  </td>
                   <td className="p-4 text-center font-bold text-slate-800 dark:text-white">
                     {stat.total}
                   </td>
@@ -254,7 +347,7 @@ export default function AdminMemberStats({ allUsers, reports, teams, teamNameMap
 
               {sortedStats.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-400 dark:text-gray-500 italic">
+                  <td colSpan={8} className="p-12 text-center text-gray-400 dark:text-gray-500 italic">
                     Không tìm thấy thành viên nào khớp với tiêu chuẩn tìm kiếm.
                   </td>
                 </tr>

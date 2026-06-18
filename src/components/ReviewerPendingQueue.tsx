@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { CheckSquare, Calendar, Layers } from 'lucide-react';
+import { CheckSquare, Calendar, Layers, CheckCheck, Loader2 } from 'lucide-react';
 import { Report, UserProfile } from '../types';
 import ReportCard from './ReportCard';
 
@@ -13,10 +13,13 @@ interface ReviewerPendingQueueProps {
   userProfile: UserProfile;
   teamNameString: string;
   onReview: (reportId: string, status: 'approved' | 'rejected', comment: string) => Promise<void>;
+  onBulkApprove: (reportIds: string[], comment?: string) => Promise<void>;
+  showConfirm: (title: string, message: string, onConfirm: () => void | Promise<void>, options?: any) => void;
 }
 
-export default function ReviewerPendingQueue({ reports, userProfile, teamNameString, onReview }: ReviewerPendingQueueProps) {
+export default function ReviewerPendingQueue({ reports, userProfile, teamNameString, onReview, onBulkApprove, showConfirm }: ReviewerPendingQueueProps) {
   const [filterScope, setFilterScope] = useState<'today' | 'all'>('today');
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   const getTodayDateString = () => {
     try {
@@ -40,6 +43,25 @@ export default function ReviewerPendingQueue({ reports, userProfile, teamNameStr
 
   const displayedReports = filterScope === 'today' ? todayPendingReports : allPendingReports;
 
+  const handleBulkApproveClick = () => {
+    if (displayedReports.length === 0) return;
+    
+    showConfirm(
+      'Phê duyệt đồng loạt',
+      `Bạn có chắc chắn muốn phê duyệt toàn bộ ${displayedReports.length} báo cáo đang đánh dấu đỏ trên màn hình hiện tại?\n\nTự động điền nhận xét: "Duyệt báo cáo tự động".`,
+      async () => {
+        setIsBulkApproving(true);
+        try {
+          const ids = displayedReports.map(r => r.id);
+          await onBulkApprove(ids, 'Duyệt báo cáo tự động');
+        } finally {
+          setIsBulkApproving(false);
+        }
+      },
+      { confirmLabel: 'Phê duyệt tất cả', type: 'info' }
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -53,30 +75,47 @@ export default function ReviewerPendingQueue({ reports, userProfile, teamNameStr
           </p>
         </div>
 
-        {/* Filter Segment Controllers */}
-        <div className="inline-flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl self-start sm:self-center">
-          <button
-            onClick={() => setFilterScope('today')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer outline-none ${
-              filterScope === 'today'
-                ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-white shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            <span>Hôm nay chưa duyệt ({todayPendingReports.length})</span>
-          </button>
-          <button
-            onClick={() => setFilterScope('all')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer outline-none ${
-              filterScope === 'all'
-                ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-white shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>Tất cả chưa duyệt ({allPendingReports.length})</span>
-          </button>
+        {/* Actions Segment */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
+          {displayedReports.length > 0 && (
+            <button
+              onClick={handleBulkApproveClick}
+              disabled={isBulkApproving}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer outline-none bg-sky-100 hover:bg-sky-200 dark:bg-sky-900/40 dark:hover:bg-sky-800 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+            >
+              {isBulkApproving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              <span>Duyệt nhanh tất cả</span>
+            </button>
+          )}
+          
+          <div className="inline-flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+            <button
+              onClick={() => setFilterScope('today')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer outline-none ${
+                filterScope === 'today'
+                  ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Hôm nay ({todayPendingReports.length})</span>
+            </button>
+            <button
+              onClick={() => setFilterScope('all')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer outline-none ${
+                filterScope === 'all'
+                  ? 'bg-white dark:bg-gray-700 text-sky-600 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Tất cả ({allPendingReports.length})</span>
+            </button>
+          </div>
         </div>
       </div>
 

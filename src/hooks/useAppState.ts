@@ -624,14 +624,27 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
           gmailError: errorMessage || null
         });
 
-        if (gmailSentResult) {
-          alert(`Đã phê duyệt báo cáo và gửi email thông báo tự động thành công: ${studentEmail}`);
-        } else if (studentEmail) {
-          alert(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên không gửi được email: ${errorMessage}`);
+        if (studentEmail && !gmailSentResult && isEmailEnabled) {
+          console.warn(`Đã lưu phê duyệt báo cáo thành công, tuy nhiên không gửi được email: ${errorMessage}`);
         }
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `reports/${reportId}`);
+    }
+  };
+
+  const handleBulkApprove = async (reportIds: string[], comment: string = 'Đã duyệt tự động') => {
+    if (!currentUser) return;
+    
+    // We can show confirm dialog outside, so here we just process.
+    try {
+      // Create an array of Promises
+      const reviewPromises = reportIds.map(id => handleReviewDecision(id, 'approved', comment));
+      await Promise.all(reviewPromises);
+      alert(`Đã phê duyệt thành công ${reportIds.length} báo cáo!`);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Có lỗi xảy ra khi phê duyệt hàng loạt: ${err.message}`);
     }
   };
 
@@ -872,6 +885,7 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
     handleSaveEmailConfig,
     handleToggleEmailNotifications,
     handleReviewDecision,
+    handleBulkApprove,
     handleCreateTeam,
     handleUpdateTeam,
     handleDeleteTeam,
@@ -883,6 +897,7 @@ Hệ thống báo cáo tiến độ Đồ án Tốt nghiệp Capstone`;
     isWithinTimeRange,
     hydratedReports,
     confirmDialog,
-    setConfirmDialog
+    setConfirmDialog,
+    showConfirm
   };
 }
